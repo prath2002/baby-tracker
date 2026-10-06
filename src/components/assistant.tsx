@@ -10,7 +10,7 @@ type Step = { method: "POST"; path: string; body: Record<string, unknown> };
 type Proposal = { id: string; kind: string; baby_id: string | null; title: string; details: string[]; steps: Step[]; blocked?: string; offline_ok: boolean };
 type ChatResponse = { reply: string; proposals: Proposal[]; ask: { question: string; options: string[] } | null; transcript: string };
 type Msg = { role: "user" | "assistant"; text: string; transcript?: string; proposals?: Proposal[]; options?: string[] };
-type CardState = { status: "pending" | "saving" | "saved" | "queued" | "confirm" | "error" | "dismissed"; message?: string; done: { id?: string }[] };
+type CardState = { status: "pending" | "saving" | "saved" | "queued" | "confirm" | "error" | "dismissed"; message?: string; done: { id?: string }[]; withdrawn?: boolean };
 
 const OPEN_EVENT = "assistant:open";
 /** Opens the chat from anywhere (e.g. the quick-log sheet). */
@@ -73,6 +73,10 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
     if (!content || busy) return;
     const next: Msg[] = [...msgs, { role: "user", text: content }];
     setMsgs(next);
+    // Unsaved cards from earlier turns are withdrawn (usually corrected by this message), so a stale card — e.g. the
+    // wrong baby — can't be saved by accident. They can be restored.
+    setCards((c) => Object.fromEntries(Object.entries(c).map(([id, st]) =>
+      [id, st.status === "pending" || st.status === "confirm" || st.status === "error" ? { ...st, status: "dismissed" as const, withdrawn: true } : st])));
     setText("");
     setBusy(true);
     try {
@@ -148,7 +152,8 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
             <p className={cx("max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2", m.role === "user" ? "bg-sage text-white dark:text-[#10201A]" : "bg-surface text-ink")}>{m.text}</p>
             {m.proposals?.map((p) => (
               <ProposalCard key={p.id} p={p} state={cards[p.id]} baby={multi ? babyById(p.baby_id) : undefined}
-                onSave={(force) => save(p, force)} onDismiss={() => setCards((c) => ({ ...c, [p.id]: { ...(c[p.id] ?? { done: [] }), status: "dismissed" } }))} />
+                onSave={(force) => save(p, force)} onDismiss={() => setCards((c) => ({ ...c, [p.id]: { ...(c[p.id] ?? { done: [] }), status: "dismissed" } }))}
+                onRestore={() => setCards((c) => ({ ...c, [p.id]: { ...(c[p.id] ?? { done: [] }), status: "pending", withdrawn: false, message: undefined } }))} />
             ))}
             {m.proposals && m.proposals.filter((p) => !p.blocked && cards[p.id]?.status === "pending").length > 1 && (
               <button onClick={() => m.proposals!.filter((p) => !p.blocked && cards[p.id]?.status === "pending").forEach((p) => save(p))}
@@ -186,9 +191,14 @@ function ChatPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ProposalCard({ p, state, baby, onSave, onDismiss }: { p: Proposal; state?: CardState; baby?: Baby; onSave: (force: boolean) => void; onDismiss: () => void }) {
+function ProposalCard({ p, state, baby, onSave, onDismiss, onRestore }: { p: Proposal; state?: CardState; baby?: Baby; onSave: (force: boolean) => void; onDismiss: () => void; onRestore: () => void }) {
   const s = state?.status ?? "pending";
-  if (s === "dismissed") return <p className="text-sm text-ink-2 line-through">{p.title}</p>;
+  if (s === "dismissed") return (
+    <p className="text-sm text-ink-2">
+      <span className="line-through">{baby ? `${baby.first_name} · ` : ""}{p.title}</span>
+      {state?.withdrawn && <> · Not saved · <button onClick={onRestore} className="font-semibold text-sage underline">Restore</button></>}
+    </p>
+  );
   return (
     <article className={cx("card w-full max-w-[92%] p-4", s === "saved" && "opacity-80")}>
       <div className="mb-1 flex items-center gap-2">

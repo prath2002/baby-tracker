@@ -8,6 +8,7 @@ import "./load-env";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { Client } from "pg";
+import { pgSsl } from "../src/lib/pg-ssl";
 
 type Rec = Record<string, unknown> & { id: string; release_gate?: string; provenance?: Record<string, string>; population?: string; clinical_context?: string };
 
@@ -21,7 +22,7 @@ export async function seedReferences(databaseUrl: string, file = "reference/medi
   const raw = readFileSync(file, "utf8");
   const fileSha = createHash("sha256").update(raw).digest("hex");
   const data = JSON.parse(raw);
-  const ssl = /sslmode=require|neon\.tech|supabase\.co|amazonaws\.com/.test(databaseUrl) ? { rejectUnauthorized: true } : undefined;
+  const ssl = pgSsl(databaseUrl);
   const c = new Client({ connectionString: databaseUrl, ssl });
   await c.connect();
   try {

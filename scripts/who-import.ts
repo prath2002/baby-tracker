@@ -14,6 +14,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import ExcelJS from "exceljs";
 import { Client } from "pg";
+import { pgSsl } from "../src/lib/pg-ssl";
 import { validateSdColumns, type Indicator } from "../src/lib/growth";
 
 type Spec = { id: string; indicator: string; code: Indicator; sex: "MALE" | "FEMALE"; xAxis: "AGE_DAYS" | "LENGTH_CM" | "HEIGHT_CM"; page: string; keywords: string[]; url?: string };
@@ -78,7 +79,7 @@ async function parse(buf: Buffer) {
 
 async function main() {
   const fromDir = process.argv.includes("--from-dir") ? process.argv[process.argv.indexOf("--from-dir") + 1] : null;
-  const c = new Client({ connectionString: (process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL), ssl: /sslmode=require|neon\.tech|supabase\.co/.test((process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL) ?? "") ? { rejectUnauthorized: true } : undefined });
+  const c = new Client({ connectionString: (process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL), ssl: pgSsl((process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL) ?? "") });
   await c.connect();
   for (const s of SPECS) {
     try {

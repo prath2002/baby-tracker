@@ -441,6 +441,30 @@ export function dropDuplicateEvents(proposals: Proposal[]): Proposal[] {
   });
 }
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const ALL_BABIES = /\b(both|all|twins|everyone|each)\b/i;
+const named = (text: string, b: AssistantBaby) =>
+  [b.name, b.nickname].filter(Boolean).some((n) => new RegExp(`(^|[^\\p{L}])${escapeRe(n!)}($|[^\\p{L}])`, "iu").test(text));
+
+/**
+ * Wrong-baby guard (spec §32.1): with more than one baby, an entry is only proposed for a baby the user actually named.
+ * The most recent user message that names a baby (or says "both"/"all") sets who the conversation is about, so short
+ * follow-ups like "make it 120 ml" keep that baby. Anything else becomes a "Who is this for?" question.
+ */
+export function requireNamedBaby(proposals: Proposal[], ctx: AssistantContext, userMessages: string[]): { proposals: Proposal[]; ask: AskUser | null } {
+  if (ctx.babies.length < 2) return { proposals, ask: null };
+  let focus: string[] = [];
+  for (const text of [...userMessages].reverse()) {
+    if (ALL_BABIES.test(text)) { focus = ctx.babies.map((b) => b.id); break; }
+    const ids = ctx.babies.filter((b) => named(text, b)).map((b) => b.id);
+    if (ids.length) { focus = ids; break; }
+  }
+  const kept = proposals.filter((p) => p.baby_id === null || focus.includes(p.baby_id));
+  if (kept.length === proposals.length) return { proposals, ask: null };
+  const ordered = [...ctx.babies].sort((a, b) => Number(b.id === ctx.currentBabyId) - Number(a.id === ctx.currentBabyId));
+  return { proposals: kept, ask: { question: "Who is this for?", options: [...ordered.map((b) => b.name), ctx.babies.length === 2 ? "Both" : "All"] } };
+}
+
 export function systemPrompt(ctx: AssistantContext): string {
   const now = DateTime.fromJSDate(ctx.now).setZone(ctx.tz);
   const cur = ctx.babies.find((b) => b.id === ctx.currentBabyId);
@@ -455,7 +479,7 @@ Current time: ${now.toISO()} (${now.toFormat("cccc, d LLLL yyyy, h:mm a")}), tim
 
 Babies this user can access:
 ${babies}
-${cur ? `The user opened the chat from ${cur.name}'s screen, so entries without a name are for ${cur.name}.` : ctx.babies.length === 1 ? `There is only one baby, ${ctx.babies[0].name}; use it.` : "The user is not on a specific baby's screen."}
+${ctx.babies.length === 1 ? `There is only one baby, ${ctx.babies[0].name}; use it.` : `There are ${ctx.babies.length} babies. Unless the user names a baby (or says both/all), call ask_user "Who is this for?" with the baby names as options — never guess${cur ? `, even though the chat was opened from ${cur.name}'s screen` : ""}. Once a baby is named, follow-up corrections in the conversation apply to that baby.`}
 
 Doctors:
 ${dir(ctx.doctors)}
@@ -466,10 +490,11 @@ Vaccine codes (use when one clearly matches): ${VACCINE_CODES.map((v) => `${v.co
 
 Rules:
 - Call exactly one tool per real-world event. Never record the same event twice (e.g. a feed is ONLY log_feeding, never also log_other). A message can contain several events (and several babies): call a tool for each. "Both babies" means one call per baby.
-- Pick the baby by name/nickname. If more than one baby could match and it is not clear from the screen, call ask_user with the baby names as options instead of guessing.
+- Pick the baby by name/nickname only.
+- If the user corrects an earlier entry ("it was for X", "make it 120 ml"), propose the corrected entry again; the old card is withdrawn automatically.
 - Convert relative times ("20 min ago", "at 3", "yesterday night") into ISO date-times with the ${now.toFormat("ZZ")} offset. "Now" or no time means the current time. Never use a time in the future for things that already happened.
 - Use only values the user said. Do not invent amounts, doses, durations or dates. If a REQUIRED value is missing (e.g. formula amount), call ask_user.
-- Direct breastfeeding has no volume. Bottle of breast milk = EXPRESSED_BREASTMILK.
+- Direct breastfeeding has no volume. Bottle of breast milk = EXPRESSED_BREASTMILK. If the user only says "milk" or "bottle" with an amount and it is unclear whether it was breast milk or formula, call ask_user with options "Formula" and "Breast milk".
 - Medicines and prescriptions are recorded exactly as stated. Never calculate, suggest or correct a dose.
 - For a dose of a medicine already in the baby's list, pass its medicine_id.
 - For doctors/clinics, pass the id only if the name matches the list above; otherwise mention the name in notes.

@@ -7,6 +7,7 @@
  */
 import "./load-env";
 import { Client } from "pg";
+import { pgSsl } from "../src/lib/pg-ssl";
 
 function arg(name: string) {
   const i = process.argv.indexOf(`--${name}`);
@@ -14,7 +15,7 @@ function arg(name: string) {
 }
 
 async function main() {
-  const c = new Client({ connectionString: (process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL), ssl: /sslmode=require|neon\.tech|supabase\.co/.test((process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL) ?? "") ? { rejectUnauthorized: true } : undefined });
+  const c = new Client({ connectionString: (process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL), ssl: pgSsl((process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL) ?? "") });
   await c.connect();
   if (process.argv.includes("--list")) {
     const r = await c.query("SELECT id, bucket, release_gate FROM reference_rule ORDER BY bucket, id");

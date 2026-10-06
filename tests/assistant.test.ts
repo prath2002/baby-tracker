@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest
 import { resetDb, login, addBaby, type Client } from "./helpers";
 import { pool } from "@/server/db";
 import { env } from "@/server/env";
-import { runTool, toolDefinitions, type AssistantContext } from "@/server/assistant/tools";
+import { requireNamedBaby, runTool, toolDefinitions, type AssistantContext, type Proposal } from "@/server/assistant/tools";
 
 const A = "0190a6b2-0000-7000-8000-000000000001", B = "0190a6b2-0000-7000-8000-000000000002", MED = "0190a6b2-0000-7000-8000-0000000000aa";
 const ctx = (role = "OWNER"): AssistantContext => ({
@@ -76,6 +76,41 @@ describe("assistant tools → proposals", () => {
   it("ask_user returns tap-able options", () => {
     const r = call("ask_user", { question: "For Aarav or Anaya?", options: ["Aarav", "Anaya"] });
     expect(r).toEqual({ ok: true, ask: { question: "For Aarav or Anaya?", options: ["Aarav", "Anaya"] } });
+  });
+});
+
+describe("wrong-baby guard", () => {
+  const feedFor = (babyId: string) => {
+    const r = call("log_feeding", { baby_id: babyId, occurred_at: "2026-10-06T15:10:00+05:30", feeding_type: "FORMULA", quantity_ml: 90 });
+    if (!r.ok || !("proposal" in r)) throw new Error("expected proposal");
+    return r.proposal as Proposal;
+  };
+  it("asks who it is for when no baby is named, even from a baby's screen", () => {
+    const g = requireNamedBaby([feedFor(A)], { ...ctx(), currentBabyId: B }, ["milk given 90 ml 10 minutes ago"]);
+    expect(g.proposals).toHaveLength(0);
+    expect(g.ask).toEqual({ question: "Who is this for?", options: ["Anaya", "Aarav", "Both"] });
+  });
+  it("keeps entries for the named baby, case-insensitively", () => {
+    expect(requireNamedBaby([feedFor(B)], ctx(), ["milk given 90 ml", "it was for anaya"]).proposals).toHaveLength(1);
+  });
+  it("rejects a guess that contradicts the named baby", () => {
+    const g = requireNamedBaby([feedFor(A)], ctx(), ["Anaya had 90 ml"]);
+    expect(g.proposals).toHaveLength(0);
+    expect(g.ask).not.toBeNull();
+  });
+  it("follow-up corrections keep the most recently named baby", () => {
+    expect(requireNamedBaby([feedFor(B)], ctx(), ["Anaya had 90 ml", "make it 120 ml"]).proposals).toHaveLength(1);
+  });
+  it("'both' allows every baby; nicknames count; one baby never asks", () => {
+    expect(requireNamedBaby([feedFor(A), feedFor(B)], ctx(), ["both had vitamin D"]).proposals).toHaveLength(2);
+    const nick = ctx(); nick.babies[0].nickname = "Chotu";
+    expect(requireNamedBaby([feedFor(A)], nick, ["chotu had 90 ml"]).proposals).toHaveLength(1);
+    const one = ctx(); one.babies = [one.babies[0]];
+    expect(requireNamedBaby([feedFor(A)], one, ["90 ml"]).ask).toBeNull();
+  });
+  it("does not match a name inside another word", () => {
+    const short = ctx(); short.babies[1].name = "Ria";
+    expect(requireNamedBaby([feedFor(B)], short, ["noted the criteria"]).proposals).toHaveLength(0);
   });
 });
 

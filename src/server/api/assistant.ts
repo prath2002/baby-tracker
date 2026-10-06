@@ -6,7 +6,7 @@ import { rateLimit, type Ctx, type Router } from "../http";
 import { audit, requireBaby } from "../core";
 import { env } from "../env";
 import { assistantEnabled, chatCompletion, type LlmMessage } from "../llm";
-import { dropDuplicateEvents, runTool, systemPrompt, toolDefinitions, type AskUser, type AssistantContext, type Proposal } from "../assistant/tools";
+import { dropDuplicateEvents, requireNamedBaby, runTool, systemPrompt, toolDefinitions, type AskUser, type AssistantContext, type Proposal } from "../assistant/tools";
 
 const chatSchema = z.object({
   messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(2000) })).min(1).max(20),
@@ -81,8 +81,9 @@ export function registerAssistant(r: Router) {
       for (const x of results) messages.push({ role: "tool", tool_call_id: x.id, content: x.text });
     }
 
-    const kept = dropDuplicateEvents(proposals);
-    proposals.splice(0, proposals.length, ...kept);
+    const guarded = requireNamedBaby(dropDuplicateEvents(proposals), ac, body.messages.filter((m) => m.role === "user").map((m) => m.content));
+    proposals.splice(0, proposals.length, ...guarded.proposals);
+    ask = guarded.ask ?? ask;
     if (ask) reply = ask.question;
     if (!reply) reply = proposals.length ? (proposals.length === 1 ? "Here's what I understood. Tap Save to add it." : `Here are ${proposals.length} entries. Tap Save on each one.`) : "I can log feeds, weight, medicines, allergies, vaccines, appointments and more. What happened?";
     await audit(ctx, "ASSISTANT_CHAT", { detail: { proposals: proposals.map((p) => p.kind), model: env.OPENROUTER_MODEL } });

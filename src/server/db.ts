@@ -1,6 +1,7 @@
 import "server-only";
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import { env } from "./env";
+import { pgSsl } from "@/lib/pg-ssl";
 
 declare global {
   var __pgPool: Pool | undefined;
@@ -8,12 +9,11 @@ declare global {
 
 function makePool() {
   const url = env.DATABASE_URL;
-  const needsSsl = /sslmode=require|neon\.tech|supabase\.co|amazonaws\.com/.test(url);
   return new Pool({
     connectionString: url,
     max: Number(process.env.PG_POOL_MAX ?? 5),
     idleTimeoutMillis: 10_000,
-    ssl: needsSsl ? { rejectUnauthorized: true } : undefined,
+    ssl: pgSsl(url),
   });
 }
 

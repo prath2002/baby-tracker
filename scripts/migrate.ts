@@ -4,11 +4,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { Client } from "pg";
+import { pgSsl } from "../src/lib/pg-ssl";
 
 async function main() {
   const url = (process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL);
   if (!url) throw new Error("DATABASE_URL is not set");
-  const ssl = /sslmode=require|neon\.tech|supabase\.co|amazonaws\.com/.test(url) ? { rejectUnauthorized: true } : undefined;
+  const ssl = pgSsl(url);
   const c = new Client({ connectionString: url, ssl });
   await c.connect();
   await c.query(`CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, sha256 char(64) NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
