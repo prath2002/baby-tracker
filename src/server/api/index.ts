@@ -14,6 +14,7 @@ import { registerDocuments } from "./documents";
 import { registerTimeline } from "./timeline";
 import { registerSummaries } from "./summaries";
 import { registerExports } from "./exports";
+import { registerAssistant } from "./assistant";
 
 let router: Router | null = null;
 export function apiRouter() {
@@ -32,6 +33,7 @@ export function apiRouter() {
   registerTimeline(r);
   registerSummaries(r);
   registerExports(r);
+  registerAssistant(r);
   r.get("/health", async () => { const db = await checkDbRole(); return { ok: true, rls_enforced: db.rls_enforced }; }, { auth: "public" });
   router = r;
   return r;

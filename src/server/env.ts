@@ -57,6 +57,11 @@ export const env = {
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY ?? "",
   VAPID_SUBJECT: process.env.VAPID_SUBJECT ?? "mailto:privacy@example.in",
 
+  // Chat assistant (OpenRouter). Disabled when no key is set.
+  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? "",
+  OPENROUTER_MODEL: process.env.OPENROUTER_MODEL ?? "anthropic/claude-haiku-4.5",
+  OPENROUTER_BASE_URL: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
+
   /** Shows non-CLEARED reference data with an UNVERIFIED banner. Refused in production. */
   REFERENCE_PREVIEW_MODE: bool("REFERENCE_PREVIEW_MODE"),
   PRIVACY_NOTICE_VERSION: process.env.PRIVACY_NOTICE_VERSION ?? "2026-10-draft-1",

@@ -6,6 +6,7 @@ import { cx, ToastProvider } from "./ui";
 import { useApi, useOnline } from "@/lib/useApi";
 import { flushQueue, onQueueChange, pendingCount } from "@/lib/offline";
 import { BabyPicker } from "./baby";
+import { Assistant, openAssistant } from "./assistant";
 
 export function ServiceWorker() {
   useEffect(() => {
@@ -82,6 +83,7 @@ function QuickLog({ open, onClose, onGo }: { open: boolean; onClose: () => void;
     <div role="dialog" aria-modal="true" aria-label="Quick actions" className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={onClose}>
       <div className="w-full rounded-t-[28px] bg-surface p-5 safe-bottom" onClick={(e) => e.stopPropagation()}>
         <h2 className="mb-3 text-lg font-bold">What would you like to log?</h2>
+        <button onClick={() => { onClose(); openAssistant(); }} className="mb-2 flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-sage-soft px-3 font-semibold text-sage">💬 Just tell me (type or speak)</button>
         <ul className="grid grid-cols-2 gap-2">
           {ACTIONS.map(([a, l]) => <li key={a}><button onClick={() => setAction(a)} className="flex min-h-16 w-full items-center justify-center rounded-2xl bg-sunken px-3 font-semibold">{l}</button></li>)}
         </ul>
@@ -99,6 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <ServiceWorker />
       <main id="main" className="mx-auto w-full max-w-xl px-4 pb-32 pt-4">{error && error.status === 0 ? null : children}</main>
       <BottomNav />
+      <Assistant />
     </ToastProvider>
   );
 }
