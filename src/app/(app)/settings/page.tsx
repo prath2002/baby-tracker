@@ -49,14 +49,15 @@ export default function Settings() {
         </Card>
         <Card className="flex flex-col gap-2" aria-label="Notifications">
           <h2 id="notifications" className="font-bold">Notifications</h2>
-          {push === "unsupported" ? <Notice>This browser doesn't support push notifications. Install the app to your home screen (iPhone: Share → Add to Home Screen) and try again. Reminders still appear in the in-app inbox.</Notice>
+          {!me.vapid_public_key ? <Notice>Reminders for medicines, appointments and vaccines appear in Alerts inside the app.</Notice>
+            : push === "unsupported" ? <Notice>This browser doesn't support push notifications. Install the app to your home screen (iPhone: Share → Add to Home Screen) and try again. Reminders still appear in the in-app inbox.</Notice>
             : <Toggle checked={push === "on"} onChange={(v) => (v ? enablePush() : disablePush())} label="Push notifications on this device" description="Reminders never include health details on the lock screen." />}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Quiet hours from">{(id) => <Input id={id} type="time" value={s.quiet_hours.start} onChange={(e) => patch({ quiet_hours: { ...s.quiet_hours, start: e.target.value } })} />}</Field>
             <Field label="until">{(id) => <Input id={id} type="time" value={s.quiet_hours.end} onChange={(e) => patch({ quiet_hours: { ...s.quiet_hours, end: e.target.value } })} />}</Field>
           </div>
           <Toggle checked={s.lockscreen_privacy === "HIDE_NAME"} onChange={(v) => patch({ lockscreen_privacy: v ? "HIDE_NAME" : "SHOW_NAME" })} label="Hide baby names in notifications" />
-          {push === "on" && <Button variant="secondary" onClick={() => api("POST", "/devices/test", { idempotent: false }).then(() => toast({ text: "Test sent" })).catch((x) => toast({ text: errorText(x), tone: "error" }))}>Send a test notification</Button>}
+          {me.vapid_public_key && push === "on" && <Button variant="secondary" onClick={() => api("POST", "/devices/test", { idempotent: false }).then(() => toast({ text: "Test sent" })).catch((x) => toast({ text: errorText(x), tone: "error" }))}>Send a test notification</Button>}
         </Card>
         <Card className="p-1">
           <ListRow href="/account" title="Account & devices" sub="Name, sign-in, sessions" right="›" />

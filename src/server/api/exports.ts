@@ -13,6 +13,7 @@ import { randomToken, sha256 } from "../crypto";
 import { zipStore, toCsv } from "../zip";
 import { env } from "../env";
 import webpush from "web-push";
+import { planForUser } from "../notifications";
 
 const TABLES: [string, string][] = [
   ["feedings", "SELECT * FROM feeding WHERE baby_id = $1 AND deleted_at IS NULL ORDER BY occurred_at"],
@@ -149,11 +150,14 @@ export function registerExports(r: Router) {
   });
 
   // ---------- notifications ----------
-  r.get("/notifications", async (ctx) => ({
+  r.get("/notifications", async (ctx) => {
+    await planForUser(ctx.session!.userId);
+    return {
     data: await ctx.q(`SELECT n.id, n.baby_id, b.first_name, b.colour_token, n.kind, n.title, n.body, n.target_path, n.scheduled_for, n.read_at FROM notification n LEFT JOIN baby b ON b.id = n.baby_id
       WHERE n.user_id = $1 AND n.status IN ('SENT','PENDING') AND n.scheduled_for <= now() ORDER BY n.scheduled_for DESC LIMIT 100`, [ctx.session!.userId]),
     unread: (await ctx.q.one<{ n: number }>("SELECT count(*)::int AS n FROM notification WHERE user_id = $1 AND read_at IS NULL AND status IN ('SENT','PENDING') AND scheduled_for <= now()", [ctx.session!.userId]))?.n ?? 0,
-  }), { auth: "user" });
+    };
+  }, { auth: "user" });
   r.patch("/notifications/:id", async (ctx) => {
     await ctx.q("UPDATE notification SET read_at = coalesce(read_at, now()) WHERE id = $1 AND user_id = $2", [ctx.params.id, ctx.session!.userId]);
     return { ok: true };

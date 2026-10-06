@@ -49,15 +49,15 @@ function shiftOutOfQuiet(at: DateTime, quiet: { start: string; end: string }) {
   return t;
 }
 
-/** Plans upcoming notifications for every member of every baby (idempotent through dedupe keys). Runs from cron. */
-export async function scheduleNotifications(now = new Date()) {
+/** Plans upcoming notifications for every member of every baby, or for one user (idempotent through dedupe keys). Runs from cron and when a user opens the app. */
+export async function scheduleNotifications(now = new Date(), userId: string | null = null) {
   return withSystem(async (q) => {
     let created = 0;
     const horizon = DateTime.fromJSDate(now).plus({ hours: 26 });
     const members = await q<{ user_id: string; baby_id: string; first_name: string; birth_date: string; timezone: string; settings: Record<string, unknown>; role: string }>(
       `SELECT m.user_id, m.baby_id, b.first_name, to_char(b.birth_date,'YYYY-MM-DD') AS birth_date, h.timezone, u.settings, m.role
        FROM baby_membership m JOIN baby b ON b.id = m.baby_id AND b.deleted_at IS NULL AND b.archived_at IS NULL JOIN household h ON h.id = b.household_id
-       JOIN app_user u ON u.id = m.user_id AND u.status = 'ACTIVE' WHERE m.revoked_at IS NULL`);
+       JOIN app_user u ON u.id = m.user_id AND u.status = 'ACTIVE' WHERE m.revoked_at IS NULL AND ($1::uuid IS NULL OR m.user_id = $1)`, [userId]);
     const add = async (userId: string, babyId: string, kind: string, title: string, body: string, path: string, at: DateTime, key: string, respectQuiet: boolean, quiet: { start: string; end: string }) => {
       const when = respectQuiet ? shiftOutOfQuiet(at, quiet) : at;
       const r = await q(`INSERT INTO notification(id, user_id, baby_id, kind, title, body, target_path, scheduled_for, dedupe_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (dedupe_key) DO NOTHING RETURNING id`,
@@ -108,6 +108,19 @@ export async function scheduleNotifications(now = new Date()) {
     }
     return { created };
   });
+}
+
+/**
+ * In-app reminders: plan for this user when they open the app, so medicines/appointments added since the daily cron
+ * still get reminders. Throttled per user per server instance; safe to repeat because planning is idempotent.
+ */
+const lastPlanned = new Map<string, number>();
+export async function planForUser(userId: string, everyMs = 10 * 60_000) {
+  const t = lastPlanned.get(userId) ?? 0;
+  if (Date.now() - t < everyMs) return;
+  lastPlanned.set(userId, Date.now());
+  try { await scheduleNotifications(new Date(), userId); }
+  catch (e) { lastPlanned.delete(userId); console.error("[reminders] planning failed", e); }
 }
 
 /** Sends due notifications. Push payloads carry no health details — only a generic title and an in-app path. */

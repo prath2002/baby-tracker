@@ -78,7 +78,7 @@ Set `VAPID_SUBJECT=mailto:you@your-domain.example`. Push works on Android/deskto
    - `APP_URL`: your production URL.
    - Leave `REFERENCE_PREVIEW_MODE=false` in Production. You may set it `true` for Preview to review gated content with UNVERIFIED banners.
 3. Deploy. The build command runs `db:migrate` → `reference:seed` → `next build`. Migrations are append-only and checksum-protected. Reference seeding keeps reviewer clearances unless the underlying data changed.
-4. **Cron:** `vercel.json` schedules `/api/cron/dispatch` every 5 minutes (reminders) and `/api/cron/daily` once a day (purge/housekeeping). Every-5-minute crons need a Vercel **Pro** plan. On Hobby, keep the daily cron and trigger `/api/cron/dispatch` from an external scheduler (e.g. a GitHub Actions `schedule` or cron-job.org) with `Authorization: Bearer $CRON_SECRET`.
+4. **Cron:** `vercel.json` schedules only `/api/cron/daily` (works on the Hobby plan). Each day it plans the next 26 hours of reminders, marks missed doses and runs purge/housekeeping. Reminders appear in the in-app **Alerts** inbox when their time arrives. Opening the app also plans reminders for that user, so medicines and appointments added during the day are covered. Push notifications are off: `/api/cron/dispatch` is not scheduled. To turn push on later, set the VAPID keys and call `/api/cron/dispatch` every 5 minutes (Vercel Pro cron, or an external scheduler such as GitHub Actions or cron-job.org) with `Authorization: Bearer $CRON_SECRET`.
 5. Add your domain. HSTS is sent automatically.
 
 ## 7. After the first deploy

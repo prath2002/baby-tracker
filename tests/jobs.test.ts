@@ -35,6 +35,21 @@ describe("notification jobs", () => {
     const inbox = await u.call("GET", "/notifications");
     expect(inbox.body.data.some((n: any) => n.kind === "APPOINTMENT")).toBe(true);
   });
+  it("opening Alerts plans that user's reminders, and due ones show in-app without any dispatch", async () => {
+    const v = await login("inapp@example.in");
+    const b = await addBaby(v, { first_name: "Kabir", sex: "MALE", birth_date: "2026-08-01" });
+    const soon = new Date(Date.now() + 3 * 3600_000).toISOString();
+    expect((await v.call("POST", `/babies/${b.id}/appointments`, { starts_at: soon, purpose: "FOLLOW_UP", reminder_offsets_min: [60] })).status).toBe(201);
+    const first = await v.call("GET", "/notifications"); // plans for this user only
+    expect(first.status).toBe(200);
+    const planned = await withSystem((q) => q<{ id: string; status: string }>("SELECT n.id, n.status FROM notification n WHERE n.user_id = $1 AND kind = 'APPOINTMENT'", [v.userId]));
+    expect(planned).toHaveLength(1);
+    expect(planned[0].status).toBe("PENDING");
+    await withSystem((q) => q("UPDATE notification SET scheduled_for = now() - interval '1 minute' WHERE id = $1", [planned[0].id]));
+    const inbox = await v.call("GET", "/notifications");
+    expect(inbox.body.data.map((n: any) => n.id)).toContain(planned[0].id);
+    expect(inbox.body.unread).toBe(1);
+  });
   it("marks missed doses after the window", async () => {
     const r = await markMissedDoses(new Date(), 6);
     expect(r.missed).toBeGreaterThanOrEqual(0);
