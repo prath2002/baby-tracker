@@ -1,0 +1,6359 @@
+openapi: 3.1.0
+info:
+  title: Baby Health Application API
+  version: 1.0.0
+  description: Multi-baby health record API (India). Reference values are returned only with provenance and only when their release gate is CLEARED.
+    The API never returns a computed milk target for healthy infants.
+  contact:
+    name: Product owner
+servers:
+- url: https://api.example.in
+  description: Production (India region) - placeholder
+security:
+- bearerAuth: []
+tags:
+- name: Authentication
+- name: Users
+- name: Babies
+- name: Feedings
+- name: FeedingPlans
+- name: MedicalReferences
+- name: Weights
+- name: Growth
+- name: Vaccinations
+- name: Doctors
+- name: Appointments
+- name: Prescriptions
+- name: Medicines
+- name: Allergies
+- name: Documents
+- name: Timeline
+- name: Summaries
+- name: Notifications
+- name: Export
+- name: Audit
+paths:
+  /v1/auth/otp/request:
+    post:
+      summary: Request a one-time code
+      tags:
+      - Authentication
+      x-authorization: Public; rate limited 5/h/identifier, 20/h/IP
+      parameters: []
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  challenge_id:
+                    type: string
+                  resend_after_s:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequest'
+      security: []
+  /v1/auth/otp/verify:
+    post:
+      summary: Verify code and obtain tokens
+      tags:
+      - Authentication
+      x-authorization: Public; 5 attempts per challenge then 15-min lock
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpVerify'
+      security: []
+  /v1/auth/passkey/register:
+    post:
+      summary: Register a passkey (WebAuthn)
+      tags:
+      - Authentication
+      x-authorization: Authenticated user
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+  /v1/auth/passkey/login:
+    post:
+      summary: Log in with a passkey
+      tags:
+      - Authentication
+      x-authorization: Public
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security: []
+  /v1/auth/token/refresh:
+    post:
+      summary: Rotate refresh token
+      tags:
+      - Authentication
+      x-authorization: Valid refresh token; reuse => family revoked
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      security: []
+  /v1/auth/logout:
+    post:
+      summary: Log out current session
+      tags:
+      - Authentication
+      x-authorization: Authenticated user
+      parameters: []
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/me:
+    get:
+      summary: Current user
+      tags:
+      - Users
+      x-authorization: Self
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update profile
+      tags:
+      - Users
+      x-authorization: Self
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Me'
+  /v1/me/settings:
+    get:
+      summary: Get settings
+      tags:
+      - Users
+      x-authorization: Self
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update settings
+      tags:
+      - Users
+      x-authorization: Self
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Settings'
+  /v1/me/consents:
+    get:
+      summary: List consents
+      tags:
+      - Users
+      x-authorization: Self
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Consent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Grant or withdraw consent
+      tags:
+      - Users
+      x-authorization: Self
+      parameters: []
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Consent'
+  /v1/me/deletion-requests:
+    post:
+      summary: Request account or baby deletion (30-day recovery)
+      tags:
+      - Users
+      x-authorization: Self (ACCOUNT); OWNER (BABY); step-up re-auth within 5 min
+      parameters: []
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  purge_after:
+                    type: string
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeletionRequest'
+  /v1/sessions:
+    get:
+      summary: List sessions
+      tags:
+      - Users
+      x-authorization: Self
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/sessions/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    delete:
+      summary: Revoke a session
+      tags:
+      - Users
+      x-authorization: Self
+      parameters: []
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/home:
+    get:
+      summary: Multi-baby dashboard
+      tags:
+      - Babies
+      x-authorization: Returns only babies with active membership
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Home'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies:
+    get:
+      summary: List my babies
+      tags:
+      - Babies
+      x-authorization: Active membership
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Baby'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Create a baby
+      tags:
+      - Babies
+      x-authorization: Authenticated adult-verified user (becomes OWNER)
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Baby'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '409':
+          $ref: '#/components/responses/DuplicateSuspected'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BabyCreate'
+  /v1/babies/{babyId}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: Get baby
+      tags:
+      - Babies
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Baby'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update baby
+      tags:
+      - Babies
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Baby'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BabyPatch'
+    delete:
+      summary: Soft-delete baby (30-day recovery)
+      tags:
+      - Babies
+      x-authorization: OWNER; step-up re-auth
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/overview:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: Baby overview
+      tags:
+      - Babies
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/age:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - name: at
+      in: query
+      schema:
+        type: string
+        format: date-time
+    get:
+      summary: Exact age
+      tags:
+      - Babies
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Age'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/members:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List members
+      tags:
+      - Babies
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Invite member
+      tags:
+      - Babies
+      x-authorization: OWNER
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Invite'
+  /v1/babies/{babyId}/members/{userId}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    patch:
+      summary: Change role
+      tags:
+      - Babies
+      x-authorization: OWNER
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Member'
+    delete:
+      summary: Revoke member (cannot remove last OWNER)
+      tags:
+      - Babies
+      x-authorization: OWNER
+      parameters: []
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+  /v1/babies/{babyId}/feedings:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List feedings
+      tags:
+      - Feedings
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      - name: type
+        in: query
+        schema:
+          enum:
+          - DIRECT_BREASTFEEDING
+          - EXPRESSED_BREASTMILK
+          - FORMULA
+          - OTHER
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Feeding'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Create feedings record
+      tags:
+      - Feedings
+      x-authorization: OWNER, GUARDIAN, CAREGIVER
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feeding'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '409':
+          $ref: '#/components/responses/DuplicateSuspected'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedingCreate'
+  /v1/babies/{babyId}/feedings/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get feedings record
+      tags:
+      - Feedings
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feeding'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update feedings record
+      tags:
+      - Feedings
+      x-authorization: OWNER, GUARDIAN, CAREGIVER
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feeding'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedingPatch'
+    delete:
+      summary: Soft-delete feedings record
+      tags:
+      - Feedings
+      x-authorization: OWNER, GUARDIAN, CAREGIVER
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+  /v1/babies/{babyId}/feedings/{id}/move:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    post:
+      summary: Move a feed to another baby (audited)
+      tags:
+      - Feedings
+      x-authorization: Write role on BOTH babies
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feeding'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - target_baby_id
+              properties:
+                target_baby_id:
+                  type: string
+                  format: uuid
+  /v1/babies/{babyId}/feedings/summary:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - name: date
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    get:
+      summary: Daily feeding totals + applicable reference
+      tags:
+      - Feedings
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedingDaySummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/feeding-plans:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List feedingplans
+      tags:
+      - FeedingPlans
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeedingPlan'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Create feedingplans record
+      tags:
+      - FeedingPlans
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedingPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedingPlanCreate'
+  /v1/babies/{babyId}/feeding-plans/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get feedingplans record
+      tags:
+      - FeedingPlans
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedingPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update feedingplans record
+      tags:
+      - FeedingPlans
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedingPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedingPlanCreate'
+    delete:
+      summary: Soft-delete feedingplans record
+      tags:
+      - FeedingPlans
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+  /v1/references/sources:
+    get:
+      summary: List reference sources
+      tags:
+      - MedicalReferences
+      x-authorization: Any authenticated user
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RefSource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/references/sources/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get reference source
+      tags:
+      - MedicalReferences
+      x-authorization: Any authenticated user
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefSource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/references/rules:
+    get:
+      summary: List CLEARED reference rules
+      tags:
+      - MedicalReferences
+      x-authorization: Any authenticated user; non-CLEARED only with internal reviewer scope
+      parameters:
+      - name: population
+        in: query
+        schema:
+          type: string
+      - name: context
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RefRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/references/conflicts:
+    get:
+      summary: List source conflicts
+      tags:
+      - MedicalReferences
+      x-authorization: Any authenticated user
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Conflict'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/references/unsupported:
+    get:
+      summary: List unsupported / not-established claims
+      tags:
+      - MedicalReferences
+      x-authorization: Any authenticated user
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Unsupported'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/references/applicable:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - name: method
+      in: query
+      schema:
+        enum:
+        - DIRECT_BREASTFEEDING
+        - EXPRESSED_BREASTMILK
+        - FORMULA
+        - OTHER
+        - ANY
+    get:
+      summary: Resolve applicable reference for this baby now
+      tags:
+      - MedicalReferences
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReferenceResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      description: Never returns a computed personal target. Healthy term => NO_AUTHORITATIVE_UNIVERSAL_VALUE_FOUND.
+  /v1/babies/{babyId}/measurements:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List weights
+      tags:
+      - Weights
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Measurement'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Create weights record
+      tags:
+      - Weights
+      x-authorization: OWNER, GUARDIAN, CAREGIVER
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Measurement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '409':
+          $ref: '#/components/responses/DuplicateSuspected'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasurementCreate'
+  /v1/babies/{babyId}/measurements/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get weights record
+      tags:
+      - Weights
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Measurement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update weights record
+      tags:
+      - Weights
+      x-authorization: OWNER, GUARDIAN, CAREGIVER
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Measurement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasurementPatch'
+    delete:
+      summary: Soft-delete weights record
+      tags:
+      - Weights
+      x-authorization: OWNER, GUARDIAN, CAREGIVER
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+  /v1/babies/{babyId}/growth:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - name: indicator
+      in: query
+      required: true
+      schema:
+        enum:
+        - WEIGHT_FOR_AGE
+        - LENGTH_HEIGHT_FOR_AGE
+        - WEIGHT_FOR_LENGTH
+        - WEIGHT_FOR_HEIGHT
+        - BMI_FOR_AGE
+        - HEAD_CIRCUMFERENCE_FOR_AGE
+        - WEIGHT_VELOCITY
+        - LENGTH_VELOCITY
+        - HEAD_CIRCUMFERENCE_VELOCITY
+    get:
+      summary: Growth reference for an indicator
+      tags:
+      - Growth
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+      description: 422 GROWTH_REFERENCE_UNAVAILABLE when sex NOT_STATED, age > 60 months, or dataset not imported.
+  /v1/growth/datasets:
+    get:
+      summary: List imported WHO datasets
+      tags:
+      - Growth
+      x-authorization: Any authenticated user
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/vaccine-schedules:
+    get:
+      summary: List schedules
+      tags:
+      - Vaccinations
+      x-authorization: Any authenticated user
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Schedule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/vaccine-schedules/{scheduleId}/versions/{versionId}:
+    parameters:
+    - name: scheduleId
+      in: path
+      required: true
+      schema:
+        type: string
+    - name: versionId
+      in: path
+      required: true
+      schema:
+        type: string
+    get:
+      summary: Get schedule version with items + provenance
+      tags:
+      - Vaccinations
+      x-authorization: Any authenticated user
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/schedule-selection:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: Current schedule selection
+      tags:
+      - Vaccinations
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleSelection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    put:
+      summary: Select / switch schedule (versioned, audited)
+      tags:
+      - Vaccinations
+      x-authorization: OWNER, GUARDIAN
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleSelection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleSelection'
+  /v1/babies/{babyId}/vaccinations/plan:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: Due / overdue / given plan
+      tags:
+      - Vaccinations
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlanItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '409':
+          $ref: '#/components/responses/ScheduleNotReleased'
+  /v1/babies/{babyId}/vaccinations:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List vaccinations
+      tags:
+      - Vaccinations
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Vaccination'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Create vaccinations record
+      tags:
+      - Vaccinations
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vaccination'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '409':
+          $ref: '#/components/responses/DuplicateSuspected'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VaccinationCreate'
+  /v1/babies/{babyId}/vaccinations/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get vaccinations record
+      tags:
+      - Vaccinations
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vaccination'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update vaccinations record
+      tags:
+      - Vaccinations
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vaccination'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VaccinationPatch'
+    delete:
+      summary: Soft-delete vaccinations record
+      tags:
+      - Vaccinations
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+  /v1/households/{householdId}/doctors:
+    parameters:
+    - $ref: '#/components/parameters/HouseholdId'
+    get:
+      summary: List doctors
+      tags:
+      - Doctors
+      x-authorization: Household member
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Doctor'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Add doctor
+      tags:
+      - Doctors
+      x-authorization: Household OWNER/GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Doctor'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DoctorCreate'
+  /v1/households/{householdId}/doctors/{id}:
+    parameters:
+    - $ref: '#/components/parameters/HouseholdId'
+    - $ref: '#/components/parameters/Id'
+    patch:
+      summary: Update doctor
+      tags:
+      - Doctors
+      x-authorization: Household OWNER/GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Doctor'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DoctorCreate'
+    delete:
+      summary: Delete doctor
+      tags:
+      - Doctors
+      x-authorization: Household OWNER/GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/households/{householdId}/clinics:
+    parameters:
+    - $ref: '#/components/parameters/HouseholdId'
+    get:
+      summary: List clinics
+      tags:
+      - Doctors
+      x-authorization: Household member
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Clinic'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Add clinic
+      tags:
+      - Doctors
+      x-authorization: Household OWNER/GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Clinic'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClinicCreate'
+  /v1/households/{householdId}/clinics/{id}:
+    parameters:
+    - $ref: '#/components/parameters/HouseholdId'
+    - $ref: '#/components/parameters/Id'
+    patch:
+      summary: Update clinic
+      tags:
+      - Doctors
+      x-authorization: Household OWNER/GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Clinic'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClinicCreate'
+    delete:
+      summary: Delete clinic
+      tags:
+      - Doctors
+      x-authorization: Household OWNER/GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/appointments:
+    get:
+      summary: List appointments across my babies
+      tags:
+      - Appointments
+      x-authorization: Only babies with membership
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      - name: baby_id
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: status
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Appointment'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/appointments:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List appointments
+      tags:
+      - Appointments
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Appointment'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Create appointments record
+      tags:
+      - Appointments
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentCreate'
+  /v1/babies/{babyId}/appointments/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get appointments record
+      tags:
+      - Appointments
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update appointments record
+      tags:
+      - Appointments
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentPatch'
+    delete:
+      summary: Soft-delete appointments record
+      tags:
+      - Appointments
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+  /v1/babies/{babyId}/prescriptions:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List prescriptions
+      tags:
+      - Prescriptions
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Prescription'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Create prescriptions record
+      tags:
+      - Prescriptions
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionCreate'
+  /v1/babies/{babyId}/prescriptions/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get prescriptions record
+      tags:
+      - Prescriptions
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update prescriptions record
+      tags:
+      - Prescriptions
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionPatch'
+    delete:
+      summary: Soft-delete prescriptions record
+      tags:
+      - Prescriptions
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+  /v1/babies/{babyId}/medicines:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List medicines
+      tags:
+      - Medicines
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Medicine'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Create medicines record
+      tags:
+      - Medicines
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medicine'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicineCreate'
+  /v1/babies/{babyId}/medicines/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get medicines record
+      tags:
+      - Medicines
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medicine'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update medicines record
+      tags:
+      - Medicines
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medicine'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicinePatch'
+    delete:
+      summary: Soft-delete medicines record
+      tags:
+      - Medicines
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+  /v1/babies/{babyId}/medicines/{id}/schedule:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    put:
+      summary: Set medicine reminder schedule
+      tags:
+      - Medicines
+      x-authorization: OWNER, GUARDIAN
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicineSchedule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicineSchedule'
+  /v1/babies/{babyId}/medicines/{id}/doses:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: List doses
+      tags:
+      - Medicines
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MedicineDose'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Record a dose as given/skipped
+      tags:
+      - Medicines
+      x-authorization: OWNER, GUARDIAN, CAREGIVER
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicineDose'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicineDoseCreate'
+  /v1/babies/{babyId}/allergies:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List allergies
+      tags:
+      - Allergies
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Allergy'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    post:
+      summary: Create allergies record
+      tags:
+      - Allergies
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Allergy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllergyCreate'
+  /v1/babies/{babyId}/allergies/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get allergies record
+      tags:
+      - Allergies
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Allergy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update allergies record
+      tags:
+      - Allergies
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Allergy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+        '422':
+          $ref: '#/components/responses/RuleViolation'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllergyPatch'
+    delete:
+      summary: Soft-delete allergies record
+      tags:
+      - Allergies
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '412':
+          $ref: '#/components/responses/VersionMismatch'
+  /v1/babies/{babyId}/allergies/confirm-none:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    post:
+      summary: Confirm no known allergies
+      tags:
+      - Allergies
+      x-authorization: OWNER, GUARDIAN
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nka_confirmed_at:
+                    type: string
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/documents:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List documents
+      tags:
+      - Documents
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER) with can_view_documents
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      - name: q
+        in: query
+        schema:
+          type: string
+      - name: tag
+        in: query
+        schema:
+          type: string
+      - name: type
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/documents/upload-intents:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    post:
+      summary: Create upload intent (presigned PUT to quarantine)
+      tags:
+      - Documents
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadIntent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadIntentRequest'
+  /v1/babies/{babyId}/documents/{id}/complete:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    post:
+      summary: Mark upload complete; triggers validation + malware scan
+      tags:
+      - Documents
+      x-authorization: OWNER, GUARDIAN
+      parameters: []
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/documents/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get document metadata
+      tags:
+      - Documents
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER) with can_view_documents
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+    patch:
+      summary: Update metadata
+      tags:
+      - Documents
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentPatch'
+    delete:
+      summary: Soft-delete document
+      tags:
+      - Documents
+      x-authorization: OWNER, GUARDIAN
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/documents/{id}/view-url:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    post:
+      summary: Issue short-lived signed GET URL (audited)
+      tags:
+      - Documents
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER) with can_view_documents
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedUrl'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+        '409':
+          $ref: '#/components/responses/ScanNotClean'
+  /v1/babies/{babyId}/timeline:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: Baby timeline
+      tags:
+      - Timeline
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      - name: types
+        in: query
+        schema:
+          type: array
+          items:
+            type: string
+        style: form
+        explode: false
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TimelineEvent'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/timeline:
+    get:
+      summary: Timeline across selected babies
+      tags:
+      - Timeline
+      x-authorization: Only babies with membership
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      - name: baby_ids
+        in: query
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+        style: form
+        explode: false
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TimelineEvent'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/summaries/daily:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - name: date
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    get:
+      summary: Daily summary
+      tags:
+      - Summaries
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/summaries/weekly:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - name: week
+      in: query
+      required: true
+      schema:
+        type: string
+        pattern: ^\d{4}-W\d{2}$
+    get:
+      summary: Weekly summary
+      tags:
+      - Summaries
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/summaries/monthly:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - name: month
+      in: query
+      required: true
+      schema:
+        type: string
+        pattern: ^\d{4}-\d{2}$
+    get:
+      summary: Monthly summary
+      tags:
+      - Summaries
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/notifications:
+    get:
+      summary: Notification inbox
+      tags:
+      - Notifications
+      x-authorization: Self
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/notifications/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    patch:
+      summary: Mark read
+      tags:
+      - Notifications
+      x-authorization: Self
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                read:
+                  type: boolean
+  /v1/devices:
+    post:
+      summary: Register push token (payloads never contain PHI)
+      tags:
+      - Notifications
+      x-authorization: Self
+      parameters: []
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Device'
+  /v1/devices/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    delete:
+      summary: Unregister device
+      tags:
+      - Notifications
+      x-authorization: Self
+      parameters: []
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/exports:
+    post:
+      summary: Create export job
+      tags:
+      - Export
+      x-authorization: OWNER/GUARDIAN of baby; step-up re-auth when include_documents
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Export'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportCreate'
+  /v1/exports/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Export status / single-use download URL
+      tags:
+      - Export
+      x-authorization: Requester
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Export'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/share-links:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    post:
+      summary: Create time-boxed read-only share link
+      tags:
+      - Export
+      x-authorization: OWNER, GUARDIAN; step-up re-auth
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShareLink'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShareLinkCreate'
+  /v1/babies/{babyId}/share-links/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    delete:
+      summary: Revoke share link
+      tags:
+      - Export
+      x-authorization: OWNER, GUARDIAN
+      parameters: []
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+  /v1/share/{token}:
+    parameters:
+    - name: token
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 32
+    get:
+      summary: View shared summary
+      tags:
+      - Export
+      x-authorization: Token-scoped; expires; audited
+      parameters: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+      security: []
+  /v1/audit:
+    get:
+      summary: Baby-scoped access & change log
+      tags:
+      - Audit
+      x-authorization: OWNER
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - $ref: '#/components/parameters/Sort'
+      - name: baby_id
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditEntry'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/Internal'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token <= 15 min; authorization resolved per baby via membership + database row-level security.
+  parameters:
+    BabyId:
+      name: babyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Resources of babies without membership return 404.
+    HouseholdId:
+      name: householdId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    From:
+      name: from
+      in: query
+      schema:
+        type: string
+        format: date-time
+    To:
+      name: to
+      in: query
+      schema:
+        type: string
+        format: date-time
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+        enum:
+        - occurred_at
+        - -occurred_at
+        - created_at
+        - -created_at
+        default: -occurred_at
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Record version
+  responses:
+    BadRequest:
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/400
+            title: Validation failed
+            status: 400
+    Unauthenticated:
+      description: Authentication required
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/401
+            title: Authentication required
+            status: 401
+    Forbidden:
+      description: Role does not permit this action
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/403
+            title: Role does not permit this action
+            status: 403
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/404
+            title: Not found
+            status: 404
+    DuplicateSuspected:
+      description: Possible duplicate; resend with force=true to save
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/409
+            title: Possible duplicate; resend with force=true to save
+            status: 409
+    ScheduleNotReleased:
+      description: Schedule not released (verification pending)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/409
+            title: Schedule not released (verification pending)
+            status: 409
+    ScanNotClean:
+      description: Document not available until malware scan is CLEAN
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/409
+            title: Document not available until malware scan is CLEAN
+            status: 409
+    VersionMismatch:
+      description: Record changed; refetch
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/412
+            title: Record changed; refetch
+            status: 412
+    TooLarge:
+      description: File too large
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/413
+            title: File too large
+            status: 413
+    UnsupportedType:
+      description: Unsupported media type
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/415
+            title: Unsupported media type
+            status: 415
+    RuleViolation:
+      description: Business rule violated (e.g. quantity sent for DIRECT_BREASTFEEDING)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/422
+            title: Business rule violated (e.g. quantity sent for DIRECT_BREASTFEEDING)
+            status: 422
+    RateLimited:
+      description: Too many requests (see Retry-After)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/429
+            title: Too many requests (see Retry-After)
+            status: 429
+    Internal:
+      description: Internal error (support code provided)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://errors.example/500
+            title: Internal error (support code provided)
+            status: 500
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details
+      required:
+      - type
+      - title
+      - status
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+        support_code:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+              message:
+                type: string
+    Audit:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+        version:
+          type: integer
+    Provenance:
+      type: object
+      required:
+      - source_id
+      - organization
+      - document_title
+      - source_url
+      - page_or_section
+      - verification_status
+      properties:
+        source_id:
+          type: string
+        organization:
+          type: string
+        document_title:
+          type: string
+        document_type:
+          type: string
+        country:
+          type: string
+        population:
+          type: string
+        clinical_context:
+          type: string
+        source_url:
+          type: string
+        publication_date:
+          type: string
+        version:
+          type: string
+        page_or_section:
+          type: string
+        retrieved_at:
+          type: string
+        verified_at:
+          type: string
+        evidence_level:
+          type: string
+        verification_status:
+          type: string
+        notes:
+          type: string
+    Age:
+      type: object
+      properties:
+        total_days:
+          type: integer
+          minimum: 0
+        completed_weeks:
+          type: integer
+        remaining_days:
+          type: integer
+          minimum: 0
+          maximum: 6
+        completed_months:
+          type: integer
+        month_remainder_days:
+          type: integer
+        years:
+          type: integer
+        display:
+          type: string
+          examples:
+          - 14 weeks 3 days
+        hours_of_life:
+          type:
+          - integer
+          - 'null'
+        day_of_life:
+          type:
+          - integer
+          - 'null'
+        corrected_age_display:
+          type:
+          - string
+          - 'null'
+    BabyCreate:
+      type: object
+      required:
+      - first_name
+      - sex
+      - birth_date
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        nickname:
+          type: string
+          maxLength: 40
+        sex:
+          enum:
+          - FEMALE
+          - MALE
+          - NOT_STATED
+        birth_date:
+          type: string
+          format: date
+          description: Must not be in the future (household tz)
+        birth_time:
+          type:
+          - string
+          - 'null'
+          pattern: ^([01]\d|2[0-3]):[0-5]\d$
+        birth_tz:
+          type: string
+          default: Asia/Kolkata
+        birth_weight_kg:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+          exclusiveMaximum: 10
+        birth_length_cm:
+          type:
+          - number
+          - 'null'
+        birth_hc_cm:
+          type:
+          - number
+          - 'null'
+        ga_weeks:
+          type:
+          - integer
+          - 'null'
+          minimum: 20
+          maximum: 45
+        ga_days:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          maximum: 6
+        ga_unknown:
+          type: boolean
+        multiple_birth_group_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        schedule_id:
+          enum:
+          - GOVERNMENT_OF_INDIA_UIP
+          - IAP_RECOMMENDED_SCHEDULE
+    BabyPatch:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        nickname:
+          type: string
+          maxLength: 40
+        sex:
+          enum:
+          - FEMALE
+          - MALE
+          - NOT_STATED
+        birth_date:
+          type: string
+          format: date
+          description: Must not be in the future (household tz)
+        birth_time:
+          type:
+          - string
+          - 'null'
+          pattern: ^([01]\d|2[0-3]):[0-5]\d$
+        birth_tz:
+          type: string
+          default: Asia/Kolkata
+        birth_weight_kg:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+          exclusiveMaximum: 10
+        birth_length_cm:
+          type:
+          - number
+          - 'null'
+        birth_hc_cm:
+          type:
+          - number
+          - 'null'
+        ga_weeks:
+          type:
+          - integer
+          - 'null'
+          minimum: 20
+          maximum: 45
+        ga_days:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          maximum: 6
+        ga_unknown:
+          type: boolean
+        multiple_birth_group_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        schedule_id:
+          enum:
+          - GOVERNMENT_OF_INDIA_UIP
+          - IAP_RECOMMENDED_SCHEDULE
+    Baby:
+      allOf:
+      - $ref: '#/components/schemas/BabyCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+          household_id:
+            type: string
+            format: uuid
+          colour_token:
+            type: string
+          photo_url:
+            type:
+            - string
+            - 'null'
+            description: Short-lived signed URL
+          age:
+            $ref: '#/components/schemas/Age'
+          categories:
+            type: array
+            items:
+              enum:
+              - PRETERM_LT_37W
+              - VERY_PRETERM_LT_32W
+              - LOW_BIRTH_WEIGHT_LT_2500G
+              - VLBW_LT_1500G
+          my_role:
+            enum:
+            - OWNER
+            - GUARDIAN
+            - CAREGIVER
+            - VIEWER
+          show_clinical_references:
+            type: boolean
+    Member:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        role:
+          enum:
+          - OWNER
+          - GUARDIAN
+          - CAREGIVER
+          - VIEWER
+        can_view_documents:
+          type: boolean
+    Invite:
+      type: object
+      required:
+      - role
+      properties:
+        phone_e164:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          enum:
+          - GUARDIAN
+          - CAREGIVER
+          - VIEWER
+        can_view_documents:
+          type: boolean
+    FeedingCreate:
+      type: object
+      required:
+      - occurred_at
+      - occurred_tz
+      - feeding_type
+      description: DIRECT_BREASTFEEDING must not include quantity (422). EXPRESSED_BREASTMILK and FORMULA require quantity_ml or quantity_oz.
+      properties:
+        occurred_at:
+          type: string
+          format: date-time
+        occurred_tz:
+          type: string
+        feeding_type:
+          enum:
+          - DIRECT_BREASTFEEDING
+          - EXPRESSED_BREASTMILK
+          - FORMULA
+          - OTHER
+        feeding_method:
+          enum:
+          - BREAST
+          - BOTTLE
+          - CUP
+          - PALADAI
+          - SPOON
+          - TUBE
+          - OTHER
+        quantity_ml:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+        quantity_oz:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+        quantity_offered_ml:
+          type:
+          - number
+          - 'null'
+        duration_minutes:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          maximum: 240
+        breast_side:
+          enum:
+          - LEFT
+          - RIGHT
+          - BOTH
+          - null
+        other_description:
+          type:
+          - string
+          - 'null'
+        notes:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+        client_id:
+          type: string
+        force:
+          type: boolean
+          description: Save despite duplicate warning
+      allOf:
+      - if:
+          properties:
+            feeding_type:
+              const: DIRECT_BREASTFEEDING
+        then:
+          properties:
+            quantity_ml:
+              type: 'null'
+            quantity_oz:
+              type: 'null'
+    FeedingPatch:
+      type: object
+      properties:
+        occurred_at:
+          type: string
+          format: date-time
+        occurred_tz:
+          type: string
+        feeding_type:
+          enum:
+          - DIRECT_BREASTFEEDING
+          - EXPRESSED_BREASTMILK
+          - FORMULA
+          - OTHER
+        feeding_method:
+          enum:
+          - BREAST
+          - BOTTLE
+          - CUP
+          - PALADAI
+          - SPOON
+          - TUBE
+          - OTHER
+        quantity_ml:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+        quantity_oz:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+        quantity_offered_ml:
+          type:
+          - number
+          - 'null'
+        duration_minutes:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+          maximum: 240
+        breast_side:
+          enum:
+          - LEFT
+          - RIGHT
+          - BOTH
+          - null
+        other_description:
+          type:
+          - string
+          - 'null'
+        notes:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+        force:
+          type: boolean
+          description: Save despite duplicate warning
+    Feeding:
+      allOf:
+      - $ref: '#/components/schemas/FeedingCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+          baby_id:
+            type: string
+            format: uuid
+          local_date:
+            type: string
+            format: date
+          entered_unit:
+            enum:
+            - ML
+            - OZ
+    FeedingPlanCreate:
+      type: object
+      required:
+      - entered_from
+      - clinician_name
+      - instructed_on
+      - plan_text
+      - valid_from
+      properties:
+        entered_from:
+          enum:
+          - PRESCRIPTION
+          - DISCHARGE_SUMMARY
+          - VERBAL_INSTRUCTION
+          - OTHER
+        clinician_name:
+          type: string
+        instructed_on:
+          type: string
+          format: date
+        plan_text:
+          type: string
+        volume_ml_per_feed:
+          type:
+          - number
+          - 'null'
+        feeds_per_day:
+          type:
+          - integer
+          - 'null'
+        valid_from:
+          type: string
+          format: date
+        valid_to:
+          type:
+          - string
+          - 'null'
+          format: date
+        attachment_document_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+    FeedingPlan:
+      allOf:
+      - $ref: '#/components/schemas/FeedingPlanCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+    ReferenceResult:
+      type: object
+      required:
+      - reference_status
+      properties:
+        reference_status:
+          enum:
+          - NO_AUTHORITATIVE_UNIVERSAL_VALUE_FOUND
+          - NOT_ESTABLISHED
+          - CLINICAL_REFERENCE
+          - CARE_TEAM_PLAN
+          - CONFLICT_REQUIRES_REVIEW
+          - REFERENCE_UNAVAILABLE_INVALID_PROFILE
+        display_mode:
+          type: string
+        messages:
+          type: array
+          items:
+            type: string
+        rules:
+          type: array
+          items:
+            type: object
+            properties:
+              rule_id:
+                type: string
+              population:
+                type: string
+              clinical_context:
+                type: string
+              value_min:
+                type:
+                - number
+                - 'null'
+              value_max:
+                type:
+                - number
+                - 'null'
+              value_target:
+                type:
+                - number
+                - 'null'
+              unit:
+                type:
+                - string
+                - 'null'
+              label:
+                const: Clinical reference
+              warnings:
+                type: array
+                items:
+                  type: string
+              provenance:
+                $ref: '#/components/schemas/Provenance'
+        plan:
+          oneOf:
+          - $ref: '#/components/schemas/FeedingPlan'
+          - type: 'null'
+        provenance:
+          oneOf:
+          - $ref: '#/components/schemas/Provenance'
+          - type: 'null'
+    FeedingDaySummary:
+      type: object
+      properties:
+        local_date:
+          type: string
+          format: date
+        data_status:
+          enum:
+          - NO_DATA
+          - RECORDED
+        measured_ml:
+          type:
+          - number
+          - 'null'
+          description: null => NOT_AVAILABLE
+        measured_ml_by_type:
+          type: object
+          properties:
+            EXPRESSED_BREASTMILK:
+              type: number
+            FORMULA:
+              type: number
+        measured_feed_count:
+          type: integer
+        direct_breastfeeding_sessions:
+          type: integer
+        other_count:
+          type: integer
+        feed_count_by_type:
+          type: object
+          additionalProperties:
+            type: integer
+        average_measured_feed_ml:
+          type:
+          - number
+          - 'null'
+        messages:
+          type: array
+          items:
+            type: string
+          examples:
+          - - 410 ml measurable milk recorded.
+            - Additional direct breastfeeding sessions were recorded but not converted to volume.
+        reference:
+          $ref: '#/components/schemas/ReferenceResult'
+    RefSource:
+      type: object
+      properties:
+        source_id:
+          type: string
+        organization:
+          type: string
+        document_title:
+          type: string
+        document_type:
+          type: string
+        country:
+          type: string
+        tier:
+          type: string
+        source_url:
+          type: string
+        publication_date:
+          type: string
+        version:
+          type: string
+        verification_status:
+          type: string
+        access_note:
+          type: string
+    RefRule:
+      type: object
+      properties:
+        id:
+          type: string
+        population:
+          type: string
+        clinical_context:
+          type: string
+        release_gate:
+          type: string
+        automatic_calculation_allowed:
+          type: boolean
+        values:
+          type: array
+          items:
+            type: object
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+    Conflict:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        source_a:
+          type: string
+        source_b:
+          type: string
+        difference:
+          type: string
+        population:
+          type: string
+        clinical_context:
+          type: string
+        date:
+          type: string
+        recommended_product_behavior:
+          type: string
+    Unsupported:
+      type: object
+      properties:
+        id:
+          type: string
+        claim:
+          type: string
+        status:
+          type: string
+        product_behavior:
+          type: string
+    MeasurementCreate:
+      type: object
+      required:
+      - measured_at
+      - measured_tz
+      - measurement_source
+      minProperties: 4
+      description: At least one of weight_kg, length_cm, head_circumference_cm
+      anyOf:
+      - required:
+        - weight_kg
+      - required:
+        - length_cm
+      - required:
+        - head_circumference_cm
+      properties:
+        measured_at:
+          type: string
+          format: date-time
+        measured_tz:
+          type: string
+        weight_kg:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+        length_cm:
+          type:
+          - number
+          - 'null'
+        length_position:
+          enum:
+          - RECUMBENT
+          - STANDING
+          - null
+        head_circumference_cm:
+          type:
+          - number
+          - 'null'
+        measurement_source:
+          enum:
+          - HOME_SCALE
+          - CLINIC
+          - HOSPITAL
+          - ANGANWADI
+          - OTHER
+        notes:
+          type:
+          - string
+          - 'null'
+    MeasurementPatch:
+      type: object
+      properties:
+        measured_at:
+          type: string
+          format: date-time
+        measured_tz:
+          type: string
+        weight_kg:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+        length_cm:
+          type:
+          - number
+          - 'null'
+        length_position:
+          enum:
+          - RECUMBENT
+          - STANDING
+          - null
+        head_circumference_cm:
+          type:
+          - number
+          - 'null'
+        measurement_source:
+          enum:
+          - HOME_SCALE
+          - CLINIC
+          - HOSPITAL
+          - ANGANWADI
+          - OTHER
+        notes:
+          type:
+          - string
+          - 'null'
+    Measurement:
+      allOf:
+      - $ref: '#/components/schemas/MeasurementCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+          change_since_previous_g:
+            type:
+            - number
+            - 'null'
+          days_since_previous:
+            type:
+            - integer
+            - 'null'
+          g_per_day:
+            type:
+            - number
+            - 'null'
+    GrowthPoint:
+      type: object
+      properties:
+        measurement_id:
+          type: string
+          format: uuid
+        x:
+          type: number
+        value:
+          type: number
+        z_score:
+          type:
+          - number
+          - 'null'
+        percentile:
+          type:
+          - number
+          - 'null'
+        label:
+          const: Growth reference
+    GrowthResult:
+      type: object
+      properties:
+        indicator:
+          enum:
+          - WEIGHT_FOR_AGE
+          - LENGTH_HEIGHT_FOR_AGE
+          - WEIGHT_FOR_LENGTH
+          - WEIGHT_FOR_HEIGHT
+          - BMI_FOR_AGE
+          - HEAD_CIRCUMFERENCE_FOR_AGE
+          - WEIGHT_VELOCITY
+          - LENGTH_VELOCITY
+          - HEAD_CIRCUMFERENCE_VELOCITY
+        dataset_id:
+          type: string
+        bands:
+          type: array
+          items:
+            type: object
+          description: Copied from imported WHO dataset
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/GrowthPoint'
+        caveats:
+          type: array
+          items:
+            type: string
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+    Schedule:
+      type: object
+      properties:
+        schedule_id:
+          type: string
+        source:
+          type: string
+        country:
+          type: string
+        applicability:
+          type: string
+        versions:
+          type: array
+          items:
+            type: object
+    ScheduleSelection:
+      type: object
+      required:
+      - schedule_id
+      properties:
+        schedule_id:
+          enum:
+          - GOVERNMENT_OF_INDIA_UIP
+          - IAP_RECOMMENDED_SCHEDULE
+        je_opt_in:
+          type: boolean
+    PlanItem:
+      type: object
+      properties:
+        schedule_item_id:
+          type: string
+        vaccine:
+          type: string
+        dose_label:
+          type: string
+        due_from:
+          type: string
+          format: date
+        due_to:
+          type:
+          - string
+          - 'null'
+          format: date
+        status:
+          enum:
+          - GIVEN
+          - DUE
+          - OVERDUE
+          - UPCOMING
+          - NOT_APPLICABLE
+          - CONFLICT_REQUIRES_REVIEW
+        vaccination_id:
+          type:
+          - string
+          - 'null'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+    VaccinationCreate:
+      type: object
+      required:
+      - vaccine_name_as_recorded
+      - given_on
+      properties:
+        vaccine_id:
+          type:
+          - string
+          - 'null'
+        vaccine_name_as_recorded:
+          type: string
+        dose_label:
+          type:
+          - string
+          - 'null'
+        given_on:
+          type: string
+          format: date
+        schedule_item_id:
+          type:
+          - string
+          - 'null'
+        clinic_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        given_by:
+          type:
+          - string
+          - 'null'
+        lot_number:
+          type:
+          - string
+          - 'null'
+        card_document_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        appointment_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        notes:
+          type:
+          - string
+          - 'null'
+        force:
+          type: boolean
+    VaccinationPatch:
+      type: object
+      properties:
+        vaccine_id:
+          type:
+          - string
+          - 'null'
+        vaccine_name_as_recorded:
+          type: string
+        dose_label:
+          type:
+          - string
+          - 'null'
+        given_on:
+          type: string
+          format: date
+        schedule_item_id:
+          type:
+          - string
+          - 'null'
+        clinic_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        given_by:
+          type:
+          - string
+          - 'null'
+        lot_number:
+          type:
+          - string
+          - 'null'
+        card_document_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        appointment_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        notes:
+          type:
+          - string
+          - 'null'
+        force:
+          type: boolean
+    Vaccination:
+      allOf:
+      - $ref: '#/components/schemas/VaccinationCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+          schedule_version_id:
+            type:
+            - string
+            - 'null'
+    DoctorCreate:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+        specialty:
+          type:
+          - string
+          - 'null'
+        phone:
+          type:
+          - string
+          - 'null'
+        notes:
+          type:
+          - string
+          - 'null'
+    Doctor:
+      allOf:
+      - $ref: '#/components/schemas/DoctorCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+    ClinicCreate:
+      type: object
+      required:
+      - name
+      properties:
+        name:
+          type: string
+        address:
+          type:
+          - string
+          - 'null'
+        phone:
+          type:
+          - string
+          - 'null'
+    Clinic:
+      allOf:
+      - $ref: '#/components/schemas/ClinicCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+    AppointmentCreate:
+      type: object
+      required:
+      - starts_at
+      - tz
+      - purpose
+      properties:
+        doctor_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        clinic_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        tz:
+          type: string
+        purpose:
+          enum:
+          - ROUTINE_CHECKUP
+          - VACCINATION
+          - FOLLOW_UP
+          - SPECIALIST
+          - LAB_TEST
+          - OTHER
+        status:
+          enum:
+          - SCHEDULED
+          - COMPLETED
+          - CANCELLED
+          - MISSED
+        group_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        notes_before:
+          type:
+          - string
+          - 'null'
+        notes_after:
+          type:
+          - string
+          - 'null'
+        reminder_offsets_min:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+    AppointmentPatch:
+      type: object
+      properties:
+        doctor_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        clinic_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        tz:
+          type: string
+        purpose:
+          enum:
+          - ROUTINE_CHECKUP
+          - VACCINATION
+          - FOLLOW_UP
+          - SPECIALIST
+          - LAB_TEST
+          - OTHER
+        status:
+          enum:
+          - SCHEDULED
+          - COMPLETED
+          - CANCELLED
+          - MISSED
+        group_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        notes_before:
+          type:
+          - string
+          - 'null'
+        notes_after:
+          type:
+          - string
+          - 'null'
+        reminder_offsets_min:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+    Appointment:
+      allOf:
+      - $ref: '#/components/schemas/AppointmentCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+          baby_id:
+            type: string
+            format: uuid
+    PrescriptionItem:
+      type: object
+      required:
+      - medicine_name
+      description: Free text exactly as written by the clinician. Never validated or inferred.
+      properties:
+        medicine_name:
+          type:
+          - string
+          - 'null'
+        strength_text:
+          type:
+          - string
+          - 'null'
+        dosage_text:
+          type:
+          - string
+          - 'null'
+        frequency_text:
+          type:
+          - string
+          - 'null'
+        duration_text:
+          type:
+          - string
+          - 'null'
+        route_text:
+          type:
+          - string
+          - 'null'
+        instructions_text:
+          type:
+          - string
+          - 'null'
+    PrescriptionCreate:
+      type: object
+      required:
+      - prescribed_on
+      properties:
+        doctor_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        clinic_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        appointment_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        prescribed_on:
+          type: string
+          format: date
+        diagnosis_text_as_written:
+          type:
+          - string
+          - 'null'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionItem'
+        attachment_document_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        notes:
+          type:
+          - string
+          - 'null'
+    PrescriptionPatch:
+      type: object
+      properties:
+        doctor_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        clinic_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        appointment_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        prescribed_on:
+          type: string
+          format: date
+        diagnosis_text_as_written:
+          type:
+          - string
+          - 'null'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionItem'
+        attachment_document_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        notes:
+          type:
+          - string
+          - 'null'
+    Prescription:
+      allOf:
+      - $ref: '#/components/schemas/PrescriptionCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+    MedicineCreate:
+      type: object
+      required:
+      - medicine_name
+      - start_date
+      properties:
+        medicine_name:
+          type: string
+        dose_amount:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+        dose_unit:
+          enum:
+          - ML
+          - MG
+          - DROPS
+          - TABLET
+          - SACHET
+          - PUFF
+          - OTHER
+          - null
+        dose_text_as_prescribed:
+          type:
+          - string
+          - 'null'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type:
+          - string
+          - 'null'
+          format: date
+        reason_as_given:
+          type:
+          - string
+          - 'null'
+        doctor_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        prescription_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        status:
+          enum:
+          - ACTIVE
+          - COMPLETED
+          - STOPPED
+        notes:
+          type:
+          - string
+          - 'null'
+    MedicinePatch:
+      type: object
+      properties:
+        medicine_name:
+          type: string
+        dose_amount:
+          type:
+          - number
+          - 'null'
+          exclusiveMinimum: 0
+        dose_unit:
+          enum:
+          - ML
+          - MG
+          - DROPS
+          - TABLET
+          - SACHET
+          - PUFF
+          - OTHER
+          - null
+        dose_text_as_prescribed:
+          type:
+          - string
+          - 'null'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type:
+          - string
+          - 'null'
+          format: date
+        reason_as_given:
+          type:
+          - string
+          - 'null'
+        doctor_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        prescription_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        status:
+          enum:
+          - ACTIVE
+          - COMPLETED
+          - STOPPED
+        notes:
+          type:
+          - string
+          - 'null'
+    Medicine:
+      allOf:
+      - $ref: '#/components/schemas/MedicineCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+    MedicineSchedule:
+      type: object
+      required:
+      - kind
+      - tz
+      properties:
+        kind:
+          enum:
+          - TIMES_OF_DAY
+          - EVERY_N_HOURS
+          - AS_NEEDED
+        times_of_day:
+          type: array
+          items:
+            type: string
+        every_n_hours:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          maximum: 72
+        tz:
+          type: string
+        reminders_enabled:
+          type: boolean
+        allow_quiet_hours:
+          type: boolean
+    MedicineDoseCreate:
+      type: object
+      required:
+      - status
+      properties:
+        scheduled_for:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        status:
+          enum:
+          - GIVEN
+          - SKIPPED
+        notes:
+          type:
+          - string
+          - 'null'
+    MedicineDose:
+      allOf:
+      - $ref: '#/components/schemas/MedicineDoseCreate'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+          recorded_at:
+            type: string
+            format: date-time
+          given_by:
+            type: string
+            format: uuid
+    AllergyCreate:
+      type: object
+      required:
+      - substance
+      - status
+      properties:
+        substance:
+          type: string
+        category:
+          enum:
+          - FOOD
+          - DRUG
+          - ENVIRONMENTAL
+          - OTHER
+          - null
+        reaction_text:
+          type:
+          - string
+          - 'null'
+        severity_reported:
+          enum:
+          - MILD
+          - MODERATE
+          - SEVERE
+          - UNKNOWN
+        status:
+          enum:
+          - SUSPECTED
+          - CONFIRMED_BY_DOCTOR
+        discovered_on:
+          type:
+          - string
+          - 'null'
+          format: date
+        doctor_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        notes:
+          type:
+          - string
+          - 'null'
+        is_active:
+          type: boolean
+    AllergyPatch:
+      type: object
+      properties:
+        substance:
+          type: string
+        category:
+          enum:
+          - FOOD
+          - DRUG
+          - ENVIRONMENTAL
+          - OTHER
+          - null
+        reaction_text:
+          type:
+          - string
+          - 'null'
+        severity_reported:
+          enum:
+          - MILD
+          - MODERATE
+          - SEVERE
+          - UNKNOWN
+        status:
+          enum:
+          - SUSPECTED
+          - CONFIRMED_BY_DOCTOR
+        discovered_on:
+          type:
+          - string
+          - 'null'
+          format: date
+        doctor_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        notes:
+          type:
+          - string
+          - 'null'
+        is_active:
+          type: boolean
+    Allergy:
+      allOf:
+      - $ref: '#/components/schemas/AllergyCreate'
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+    UploadIntentRequest:
+      type: object
+      required:
+      - file_name
+      - declared_mime
+      - size_bytes
+      - title
+      - doc_type
+      properties:
+        file_name:
+          type: string
+        declared_mime:
+          enum:
+          - application/pdf
+          - image/jpeg
+          - image/png
+          - image/heic
+          - image/heif
+          - image/webp
+        size_bytes:
+          type: integer
+          minimum: 1
+          maximum: 20971520
+        sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        title:
+          type: string
+          minLength: 1
+        doc_type:
+          enum:
+          - LAB_REPORT
+          - IMAGING
+          - DISCHARGE_SUMMARY
+          - PRESCRIPTION_SCAN
+          - VACCINATION_CARD
+          - BIRTH_RECORD
+          - INSURANCE
+          - OTHER
+        document_date:
+          type:
+          - string
+          - 'null'
+          format: date
+        doctor_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        clinic_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        description:
+          type:
+          - string
+          - 'null'
+        tags:
+          type: array
+          items:
+            type: string
+    UploadIntent:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        upload_url:
+          type: string
+          format: uri
+        required_headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+    DocumentPatch:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        doc_type:
+          enum:
+          - LAB_REPORT
+          - IMAGING
+          - DISCHARGE_SUMMARY
+          - PRESCRIPTION_SCAN
+          - VACCINATION_CARD
+          - BIRTH_RECORD
+          - INSURANCE
+          - OTHER
+        document_date:
+          type:
+          - string
+          - 'null'
+          format: date
+        doctor_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        clinic_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        description:
+          type:
+          - string
+          - 'null'
+        tags:
+          type: array
+          items:
+            type: string
+    Document:
+      allOf:
+      - type: object
+        properties:
+          title:
+            type: string
+            minLength: 1
+          doc_type:
+            enum:
+            - LAB_REPORT
+            - IMAGING
+            - DISCHARGE_SUMMARY
+            - PRESCRIPTION_SCAN
+            - VACCINATION_CARD
+            - BIRTH_RECORD
+            - INSURANCE
+            - OTHER
+          document_date:
+            type:
+            - string
+            - 'null'
+            format: date
+          doctor_id:
+            type:
+            - string
+            - 'null'
+            format: uuid
+          clinic_id:
+            type:
+            - string
+            - 'null'
+            format: uuid
+          description:
+            type:
+            - string
+            - 'null'
+          tags:
+            type: array
+            items:
+              type: string
+      - $ref: '#/components/schemas/Audit'
+      - type: object
+        properties:
+          id:
+            type: string
+            format: uuid
+          mime_detected:
+            type: string
+          size_bytes:
+            type: integer
+          page_count:
+            type:
+            - integer
+            - 'null'
+          scan_status:
+            enum:
+            - PENDING
+            - CLEAN
+            - INFECTED
+            - ERROR
+    SignedUrl:
+      type: object
+      required:
+      - url
+      - expires_at
+      properties:
+        url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+          description: <= 300 s from issue
+    TimelineEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        baby_id:
+          type: string
+          format: uuid
+        event_type:
+          enum:
+          - BIRTH
+          - FEEDING
+          - WEIGHT
+          - VACCINE
+          - APPOINTMENT
+          - PRESCRIPTION
+          - MEDICINE
+          - ALLERGY
+          - MEDICAL_REPORT
+          - IMPORTANT_MEDICAL_EVENT
+          - CUSTOM
+        occurred_at:
+          type: string
+          format: date-time
+        title:
+          type: string
+        summary:
+          type:
+          - string
+          - 'null'
+        source:
+          type: object
+          properties:
+            table:
+              type: string
+            id:
+              type: string
+              format: uuid
+            href:
+              type: string
+    Summary:
+      type: object
+      properties:
+        baby_id:
+          type: string
+          format: uuid
+        period:
+          type: string
+        age:
+          $ref: '#/components/schemas/Age'
+        data_status:
+          enum:
+          - NO_DATA
+          - PARTIAL_DATA
+          - RECORDED
+        feeding:
+          type: object
+          properties:
+            per_day:
+              type: array
+              items:
+                $ref: '#/components/schemas/FeedingDaySummary'
+            total_measured_ml:
+              type:
+              - number
+              - 'null'
+            days_with_measured_data:
+              type: integer
+            avg_measured_ml_per_day_with_data:
+              type:
+              - number
+              - 'null'
+            direct_breastfeeding_sessions:
+              type: integer
+        weights:
+          type: array
+          items:
+            $ref: '#/components/schemas/Measurement'
+        vaccinations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vaccination'
+        appointments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appointment'
+        medicines:
+          type: array
+          items:
+            $ref: '#/components/schemas/Medicine'
+        allergies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Allergy'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+        highlights:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimelineEvent'
+        data_quality_notes:
+          type: array
+          items:
+            type: string
+        reference:
+          $ref: '#/components/schemas/ReferenceResult'
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        baby_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        kind:
+          type: string
+        scheduled_for:
+          type: string
+          format: date-time
+        read_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        target:
+          type: object
+    Device:
+      type: object
+      required:
+      - platform
+      - push_token
+      properties:
+        platform:
+          enum:
+          - ANDROID
+          - IOS
+          - WEB
+        push_token:
+          type: string
+    ExportCreate:
+      type: object
+      required:
+      - baby_id
+      - format
+      properties:
+        baby_id:
+          type: string
+          format: uuid
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        modules:
+          type: array
+          items:
+            type: string
+        format:
+          enum:
+          - PDF_VISIT_SUMMARY
+          - JSON
+          - CSV
+        include_documents:
+          type: boolean
+    Export:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          enum:
+          - QUEUED
+          - RUNNING
+          - READY
+          - FAILED
+          - EXPIRED
+        download:
+          oneOf:
+          - $ref: '#/components/schemas/SignedUrl'
+          - type: 'null'
+    ShareLinkCreate:
+      type: object
+      required:
+      - scope
+      - expires_in_hours
+      properties:
+        scope:
+          type: object
+        expires_in_hours:
+          type: integer
+          minimum: 1
+          maximum: 168
+        max_views:
+          type:
+          - integer
+          - 'null'
+    ShareLink:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+    AuditEntry:
+      type: object
+      properties:
+        occurred_at:
+          type: string
+          format: date-time
+        actor:
+          type: string
+        action:
+          type: string
+        entity_table:
+          type: string
+        entity_id:
+          type: string
+    Me:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        phone_e164:
+          type:
+          - string
+          - 'null'
+        email:
+          type:
+          - string
+          - 'null'
+        locale:
+          type: string
+        adult_verified:
+          type: boolean
+    Settings:
+      type: object
+      properties:
+        volume_unit:
+          enum:
+          - ML
+          - OZ
+        weight_unit:
+          enum:
+          - KG
+          - LB
+        household_timezone:
+          type: string
+        quiet_hours:
+          type: object
+          properties:
+            start:
+              type: string
+            end:
+              type: string
+        lockscreen_privacy:
+          enum:
+          - SHOW_NAME
+          - HIDE_NAME
+        theme:
+          enum:
+          - LIGHT
+          - DARK
+          - SYSTEM
+    Consent:
+      type: object
+      required:
+      - purpose
+      - notice_version
+      - granted
+      properties:
+        purpose:
+          type: string
+        notice_version:
+          type: string
+        granted:
+          type: boolean
+        recorded_at:
+          type: string
+          format: date-time
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        device_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+    OtpRequest:
+      type: object
+      properties:
+        phone_e164:
+          type: string
+          pattern: ^\+[1-9]\d{7,14}$
+        email:
+          type: string
+          format: email
+      oneOf:
+      - required:
+        - phone_e164
+      - required:
+        - email
+    OtpVerify:
+      type: object
+      required:
+      - challenge_id
+      - code
+      properties:
+        challenge_id:
+          type: string
+        code:
+          type: string
+          pattern: ^\d{6}$
+        device_name:
+          type: string
+    Tokens:
+      type: object
+      properties:
+        access_token:
+          type: string
+        expires_in:
+          type: integer
+          maximum: 900
+        refresh_token:
+          type: string
+          description: Mobile only; web uses httpOnly cookie
+        new_user:
+          type: boolean
+    DeletionRequest:
+      type: object
+      required:
+      - target_type
+      - target_id
+      - confirmation_text
+      properties:
+        target_type:
+          enum:
+          - ACCOUNT
+          - BABY
+        target_id:
+          type: string
+          format: uuid
+        confirmation_text:
+          type: string
+    Home:
+      type: object
+      properties:
+        babies:
+          type: array
+          items:
+            type: object
+            properties:
+              baby:
+                $ref: '#/components/schemas/Baby'
+              today:
+                $ref: '#/components/schemas/FeedingDaySummary'
+              latest_weight:
+                oneOf:
+                - $ref: '#/components/schemas/Measurement'
+                - type: 'null'
+              next_vaccine:
+                oneOf:
+                - $ref: '#/components/schemas/PlanItem'
+                - type: 'null'
+              next_appointment:
+                oneOf:
+                - $ref: '#/components/schemas/Appointment'
+                - type: 'null'
+              alerts:
+                type: array
+                items:
+                  type: string
+              allergies:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Allergy'

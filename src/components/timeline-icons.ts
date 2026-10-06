@@ -1,0 +1,1 @@
+export const ICON: Record<string, string> = { BIRTH: "🌱", FEEDING: "🍼", WEIGHT: "⚖︎", VACCINE: "💉", APPOINTMENT: "📅", PRESCRIPTION: "📝", MEDICINE: "💊", ALLERGY: "⚠︎", MEDICAL_REPORT: "📄", IMPORTANT_MEDICAL_EVENT: "⭐", CUSTOM: "✎" };

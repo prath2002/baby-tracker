@@ -1,0 +1,51 @@
+@import "tailwindcss";
+@import "@fontsource-variable/nunito";
+@import "@fontsource-variable/inter";
+
+/* Cradle Calm design tokens (spec §33.1). Contrast verified: ink 11.4:1, ink-2 5.4:1, white on sage 5.8:1. */
+:root {
+  --canvas: #FBF7F1; --surface: #FFFFFF; --sunken: #F3ECE3; --line: #E7DED3;
+  --ink: #1F3A3D; --ink-2: #55696A; --sage: #3F6F5A; --sage-strong: #345D4B; --sage-soft: #DCEBE1; --apricot: #F2B48C;
+  --info: #2F5F86; --info-bg: #E4EEF7; --caution: #7A4F00; --caution-bg: #FFF1D6; --allergy: #9E2F3A; --allergy-bg: #FBE4E4;
+  --peach: #F6C7B0; --peach-ink: #7A3F25; --sky: #BFD9EE; --sky-ink: #2F5F86; --mint: #C6E5D3; --mint-ink: #2F6B4C;
+  --lilac: #D9CCF0; --lilac-ink: #5B4A8C; --butter: #F5E3A6; --butter-ink: #6F5A12; --rose: #F0C4CF; --rose-ink: #8C3C55;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #121A1B; --surface: #1A2425; --sunken: #223031; --line: #2E3D3E;
+    --ink: #EAF1EF; --ink-2: #A9BAB8; --sage: #8CC3A6; --sage-strong: #A3D3B9; --sage-soft: #24382E; --apricot: #D99A74;
+    --info: #9CC4E8; --info-bg: #1D2D3B; --caution: #F2C66B; --caution-bg: #3A2F14; --allergy: #F2A0A8; --allergy-bg: #3D1E22;
+    --peach: #C9A291; --peach-ink: #2B1409; --sky: #9DB4C6; --sky-ink: #0F2436; --mint: #A2BBAD; --mint-ink: #0F2A1B;
+    --lilac: #B3A8C6; --lilac-ink: #22183D; --butter: #C9BB8B; --butter-ink: #2A2105; --rose: #C6A3AD; --rose-ink: #3A1320;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --canvas: #121A1B; --surface: #1A2425; --sunken: #223031; --line: #2E3D3E;
+  --ink: #EAF1EF; --ink-2: #A9BAB8; --sage: #8CC3A6; --sage-strong: #A3D3B9; --sage-soft: #24382E; --apricot: #D99A74;
+  --info: #9CC4E8; --info-bg: #1D2D3B; --caution: #F2C66B; --caution-bg: #3A2F14; --allergy: #F2A0A8; --allergy-bg: #3D1E22;
+  --peach: #C9A291; --peach-ink: #2B1409; --sky: #9DB4C6; --sky-ink: #0F2436; --mint: #A2BBAD; --mint-ink: #0F2A1B;
+  --lilac: #B3A8C6; --lilac-ink: #22183D; --butter: #C9BB8B; --butter-ink: #2A2105; --rose: #C6A3AD; --rose-ink: #3A1320;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas); --color-surface: var(--surface); --color-sunken: var(--sunken); --color-line: var(--line);
+  --color-ink: var(--ink); --color-ink-2: var(--ink-2); --color-sage: var(--sage); --color-sage-strong: var(--sage-strong); --color-sage-soft: var(--sage-soft);
+  --color-apricot: var(--apricot); --color-info: var(--info); --color-info-bg: var(--info-bg); --color-caution: var(--caution); --color-caution-bg: var(--caution-bg);
+  --color-allergy: var(--allergy); --color-allergy-bg: var(--allergy-bg);
+  --font-sans: "Inter Variable", system-ui, "Noto Sans Devanagari", sans-serif;
+  --font-display: "Nunito Variable", "Inter Variable", system-ui, sans-serif;
+  --radius-card: 20px; --radius-field: 14px;
+}
+
+html, body { background: var(--canvas); color: var(--ink); }
+body { font-family: var(--font-sans); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; border-radius: 8px; }
+.card { background: var(--surface); border-radius: var(--radius-card); box-shadow: 0 2px 12px rgba(31, 58, 61, 0.06); border: 1px solid var(--line); }
+.hatch { background-image: repeating-linear-gradient(135deg, var(--line) 0 4px, transparent 4px 8px); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+.safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 0px); }

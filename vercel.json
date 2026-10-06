@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["bom1"],
+  "buildCommand": "npm run db:migrate && npm run reference:seed && npm run build",
+  "functions": {
+    "src/app/api/v1/[...path]/route.ts": { "maxDuration": 60, "memory": 1024 },
+    "src/app/api/cron/dispatch/route.ts": { "maxDuration": 60 },
+    "src/app/api/cron/daily/route.ts": { "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/cron/dispatch", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/daily", "schedule": "30 21 * * *" }
+  ]
+}

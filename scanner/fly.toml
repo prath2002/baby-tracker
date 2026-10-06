@@ -1,0 +1,12 @@
+# Example Fly.io config (Mumbai). Set the secret with: fly secrets set SCANNER_TOKEN=$(openssl rand -hex 32)
+app = "baby-health-scanner"
+primary_region = "bom"
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  min_machines_running = 1
+[[vm]]
+  memory = "2gb"
+  cpu_kind = "shared"
+  cpus = 1

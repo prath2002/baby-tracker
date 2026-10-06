@@ -1,0 +1,30 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Create non-superuser app role (RLS must apply)
+        run: |
+          psql -h localhost -U postgres -c "CREATE ROLE babyapp LOGIN PASSWORD 'babyapp' NOSUPERUSER NOBYPASSRLS"
+          psql -h localhost -U postgres -c "CREATE DATABASE babytracker_test OWNER babyapp"
+          psql -h localhost -U postgres -d babytracker_test -c "CREATE EXTENSION IF NOT EXISTS citext"
+      - run: npm run db:migrate && npm run reference:seed
+        env: { DATABASE_URL: "postgres://babyapp:babyapp@localhost:5432/babytracker_test" }
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+        env: { DATABASE_URL: "postgres://babyapp:babyapp@localhost:5432/babytracker_test", LOCAL_STORAGE_DIR: "/tmp/bh-test-storage" }
+      - run: npm run build
