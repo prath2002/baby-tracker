@@ -1109,6 +1109,187 @@ paths:
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/Internal'
+  /v1/babies/{babyId}/excretions:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    get:
+      summary: List excretions (pee, poop, both, vomit)
+      tags:
+      - Excretions
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/From'
+      - $ref: '#/components/parameters/To'
+      - name: type
+        in: query
+        schema:
+          $ref: '#/components/schemas/ExcretionType'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Excretion'
+                  next_cursor:
+                    type:
+                    - string
+                    - 'null'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      summary: Create excretion record
+      tags:
+      - Excretions
+      x-authorization: OWNER, GUARDIAN, CAREGIVER
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Excretion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/DuplicateSuspected'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExcretionCreate'
+  /v1/babies/{babyId}/excretions/summary:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - name: date
+      in: query
+      schema:
+        type: string
+        format: date
+    get:
+      summary: Daily excretion counts (wet includes "both", dirty includes "both"). Counts only; no thresholds.
+      tags:
+      - Excretions
+      x-authorization: Any active member of the baby (OWNER, GUARDIAN, CAREGIVER, VIEWER)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  wet:
+                    type: integer
+                  dirty:
+                    type: integer
+                  vomit:
+                    type: integer
+                  total:
+                    type: integer
+                  last_at:
+                    type:
+                    - string
+                    - 'null'
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/babies/{babyId}/excretions/{id}:
+    parameters:
+    - $ref: '#/components/parameters/BabyId'
+    - $ref: '#/components/parameters/Id'
+    get:
+      summary: Get excretion record
+      tags:
+      - Excretions
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Excretion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update excretion record (If-Match required)
+      tags:
+      - Excretions
+      x-authorization: OWNER, GUARDIAN, CAREGIVER
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Excretion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExcretionCreate'
+    delete:
+      summary: Soft-delete excretion record (restore via POST .../restore within 1 day; move via POST .../move)
+      tags:
+      - Excretions
+      x-authorization: OWNER, GUARDIAN, CAREGIVER
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/babies/{babyId}/feeding-plans:
     parameters:
     - $ref: '#/components/parameters/BabyId'
@@ -4608,6 +4789,40 @@ components:
         force:
           type: boolean
           description: Save despite duplicate warning
+    ExcretionType:
+      enum:
+      - URINE
+      - STOOL
+      - URINE_AND_STOOL
+      - VOMIT
+    ExcretionCreate:
+      type: object
+      required:
+      - occurred_at
+      - excretion_type
+      properties:
+        occurred_at:
+          type: string
+          format: date-time
+        occurred_tz:
+          type: string
+        excretion_type:
+          $ref: '#/components/schemas/ExcretionType'
+        notes:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Free-text description, e.g. "yellow, liquidy" or "curdled milk after feed"
+        client_id:
+          type: string
+        force:
+          type: boolean
+          description: Save despite duplicate warning
+    Excretion:
+      allOf:
+      - $ref: '#/components/schemas/ExcretionCreate'
+      - $ref: '#/components/schemas/Audit'
     Feeding:
       allOf:
       - $ref: '#/components/schemas/FeedingCreate'
@@ -5971,6 +6186,7 @@ components:
           enum:
           - BIRTH
           - FEEDING
+          - EXCRETION
           - WEIGHT
           - VACCINE
           - APPOINTMENT

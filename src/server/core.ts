@@ -1,5 +1,6 @@
 import "server-only";
-import { ApiError, forbidden, notFound, type Ctx } from "./http";
+import { DateTime } from "luxon";
+import { ApiError, badRequest, forbidden, notFound, type Ctx } from "./http";
 import { isUuid } from "@/lib/ids";
 import { uuidv7 } from "@/lib/ids";
 import type { Q } from "./db";
@@ -73,7 +74,15 @@ export async function audit(ctx: Ctx, action: string, opts: { babyId?: string | 
   ]);
 }
 
-export type TimelineType = "BIRTH" | "FEEDING" | "WEIGHT" | "VACCINE" | "APPOINTMENT" | "PRESCRIPTION" | "MEDICINE" | "ALLERGY" | "MEDICAL_REPORT" | "IMPORTANT_MEDICAL_EVENT" | "CUSTOM";
+export type TimelineType = "BIRTH" | "FEEDING" | "EXCRETION" | "WEIGHT" | "VACCINE" | "APPOINTMENT" | "PRESCRIPTION" | "MEDICINE" | "ALLERGY" | "MEDICAL_REPORT" | "IMPORTANT_MEDICAL_EVENT" | "CUSTOM";
+
+/** Logged events can't be in the future or before the date of birth. */
+export function checkEventTime(a: BabyAccess, occurredAt: string, noun: string) {
+  const t = new Date(occurredAt).getTime();
+  if (t > Date.now() + 5 * 60_000) throw badRequest(`${noun} time can't be in the future`, [{ field: "occurred_at", code: "future", message: "Time is in the future" }]);
+  const birthStart = DateTime.fromISO(a.baby.birth_date, { zone: a.baby.birth_tz }).startOf("day").toMillis();
+  if (t < birthStart) throw badRequest(`${noun} time is before the date of birth`, [{ field: "occurred_at", code: "before_birth", message: "Before date of birth" }]);
+}
 
 /** Timeline projection written in the same transaction as the source row (spec §25). */
 export async function upsertTimeline(q: Q, e: {

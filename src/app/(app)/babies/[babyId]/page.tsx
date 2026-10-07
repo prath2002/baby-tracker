@@ -12,6 +12,7 @@ export default function Overview({ params }: { params: Promise<{ babyId: string 
   const { babyId } = use(params);
   const { data: baby, error, reload } = useBaby(babyId);
   const { data: today } = useApi<any>(`/babies/${babyId}/feedings/summary`);
+  const { data: out } = useApi<any>(`/babies/${babyId}/excretions/summary`);
   const { data: weights } = useApi<any>(`/babies/${babyId}/measurements?limit=2`);
   const { data: tl } = useApi<any>(`/babies/${babyId}/timeline?limit=5`);
   const { data: meds } = useApi<any>(`/babies/${babyId}/medicines?status=ACTIVE`);
@@ -39,10 +40,15 @@ export default function Overview({ params }: { params: Promise<{ babyId: string 
               <Stat label="Measured milk" value={today.measuredMl != null ? fmtMl(today.measuredMl) : "—"} sub={today.measuredMl == null ? "Not available" : `${today.measuredFeedCount} measured feeds`} />
               <Stat label="Last feed" value={today.lastFeedAt ? fmtDateTime(today.lastFeedAt, baby.household_timezone).split(", ")[1] : "—"} />
               <Stat label="Weight" value={w ? fmtKg(w.weight_kg) : "—"} sub={w ? fmtDate(w.local_date) : "Not recorded"} />
+              <Stat label="Wet / dirty" value={out ? `${out.wet} / ${out.dirty}` : "—"} sub={out?.vomit ? `${out.vomit} vomit` : undefined} />
+              <Stat label="Last excretion" value={out?.last_at ? fmtDateTime(out.last_at, baby.household_timezone).split(", ")[1] : "—"} />
             </div>
           ) : <Loading />}
           {today?.messages?.length > 0 && <ul className="mt-2 text-sm text-ink-2">{today.messages.map((m: string) => <li key={m}>{m}</li>)}</ul>}
-          {canLog(baby.my_role) && <Link href={`/babies/${babyId}/feedings/new`} className="mt-3 flex min-h-12 items-center justify-center rounded-full bg-sage font-bold text-white dark:text-[#10201A]">+ Add feeding for {baby.first_name}</Link>}
+          {canLog(baby.my_role) && <div className="mt-3 grid grid-cols-[2fr_1fr] gap-2">
+            <Link href={`/babies/${babyId}/feedings/new`} className="flex min-h-12 items-center justify-center rounded-full bg-sage font-bold text-white dark:text-[#10201A]">+ Add feeding for {baby.first_name}</Link>
+            <Link href={`/babies/${babyId}/excretions/new`} className="flex min-h-12 items-center justify-center rounded-full border border-line font-bold">+ Excretion</Link>
+          </div>}
         </section>
         <ReferenceCard r={today?.reference} />
         <section className="card p-4">

@@ -93,7 +93,7 @@ export function BabyChip({ name, colour }: { name: string; colour: string }) {
 }
 
 export function BabyNav({ babyId, active }: { babyId: string; active: string }) {
-  const items: [string, string][] = [["", "Overview"], ["milk", "Milk"], ["weight", "Weight"], ["growth", "Growth"], ["vaccinations", "Vaccines"], ["appointments", "Visits"],
+  const items: [string, string][] = [["", "Overview"], ["milk", "Milk"], ["excretions", "Excretions"], ["weight", "Weight"], ["growth", "Growth"], ["vaccinations", "Vaccines"], ["appointments", "Visits"],
     ["medicines", "Medicines"], ["prescriptions", "Prescriptions"], ["allergies", "Allergies"], ["documents", "Documents"], ["timeline", "Timeline"], ["summary/daily", "Summaries"], ["profile", "Profile"]];
   return (
     <nav aria-label="Baby sections" className="-mx-4 mb-4 overflow-x-auto px-4">

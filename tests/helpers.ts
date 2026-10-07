@@ -6,7 +6,7 @@ export const BASE = "http://localhost:3000";
 
 export async function resetDb() {
   await pool.query(`TRUNCATE audit_log, notification, push_subscription, share_link, export_job, deletion_request, idempotency_key, timeline_event, custom_event,
-    medicine_dose, medicine_schedule, prescription_item, medicine, prescription, vaccination, appointment, allergy, feeding, feeding_plan, weight_measurement,
+    medicine_dose, medicine_schedule, prescription_item, medicine, prescription, vaccination, appointment, allergy, feeding, feeding_plan, excretion, weight_measurement,
     baby_schedule_selection, medical_document, invitation, baby_membership, baby_household_index, baby_profile, baby, doctor, clinic, household_member, household,
     consent_record, user_session, user_password, auth_challenge, rate_limit, app_user CASCADE`);
   await pool.query("UPDATE reference_rule SET release_gate = payload->>'release_gate' WHERE payload ? 'release_gate'");

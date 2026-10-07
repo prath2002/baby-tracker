@@ -17,6 +17,7 @@ import { planForUser } from "../notifications";
 
 const TABLES: [string, string][] = [
   ["feedings", "SELECT * FROM feeding WHERE baby_id = $1 AND deleted_at IS NULL ORDER BY occurred_at"],
+  ["excretions", "SELECT * FROM excretion WHERE baby_id = $1 AND deleted_at IS NULL ORDER BY occurred_at"],
   ["feeding_plans", "SELECT * FROM feeding_plan WHERE baby_id = $1 AND deleted_at IS NULL"],
   ["measurements", "SELECT * FROM weight_measurement WHERE baby_id = $1 AND deleted_at IS NULL ORDER BY measured_at"],
   ["vaccinations", "SELECT * FROM vaccination WHERE baby_id = $1 AND deleted_at IS NULL ORDER BY given_on"],

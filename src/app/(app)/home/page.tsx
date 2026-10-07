@@ -5,7 +5,7 @@ import { fmtDate, fmtDateTime, fmtKg, fmtMl } from "@/lib/format";
 import { Badge, EmptyState, ErrorState, LinkButton, Loading, PageHeader } from "@/components/ui";
 import { BabyAvatar, COLOUR, displayName, type Baby } from "@/components/baby";
 
-type HomeBaby = { baby: Baby; today: any; latest_weight: { weight_kg: number; local_date: string } | null; next_vaccine: any; next_appointment: any; alerts: string[] };
+type HomeBaby = { baby: Baby; today: any; excretions: { wet: number; dirty: number; vomit: number }; latest_weight: { weight_kg: number; local_date: string } | null; next_vaccine: any; next_appointment: any; alerts: string[] };
 
 /** Home — multi-baby dashboard (screen 5). */
 export default function Home() {
@@ -17,7 +17,7 @@ export default function Home() {
       {error && <ErrorState message={error.problem.detail ?? error.message} onRetry={reload} />}
       {data && !data.babies.length && <EmptyState icon="🍼" title="Add your first baby" body="Each baby gets their own record, colour and reminders." action={<LinkButton href="/babies/new">Add baby</LinkButton>} />}
       <ul className="flex flex-col gap-4">
-        {data?.babies.map(({ baby, today, latest_weight, next_vaccine, next_appointment, alerts }) => {
+        {data?.babies.map(({ baby, today, excretions, latest_weight, next_vaccine, next_appointment, alerts }) => {
           const c = COLOUR[baby.colour_token];
           return (
             <li key={baby.id}>
@@ -38,13 +38,14 @@ export default function Home() {
                 </dl>
                 <div className="flex flex-col gap-1 border-t border-line px-4 py-3 text-sm">
                   <p>💉 {next_vaccine ? <>Next: <b>{next_vaccine.dose_label}</b> · {next_vaccine.status === "UPCOMING" ? `from ${fmtDate(next_vaccine.due_from)}` : next_vaccine.status === "DUE" ? "due now" : "ask your vaccinator"}</> : <span className="text-ink-2">Vaccine schedule pending review — record doses manually</span>}</p>
+                  <p>💧 {excretions.wet + excretions.dirty + excretions.vomit ? <>Today: <b>{excretions.wet} wet · {excretions.dirty} dirty</b>{excretions.vomit ? ` · ${excretions.vomit} vomit` : ""}</> : <span className="text-ink-2">No pee or poop logged today</span>}</p>
                   <p>📅 {next_appointment ? <>Next visit: <b>{fmtDateTime(next_appointment.starts_at, baby.household_timezone)}</b></> : <span className="text-ink-2">No upcoming appointments</span>}</p>
                   {alerts.includes("DOCUMENT_BLOCKED") && <p className="font-semibold text-allergy">A document upload was blocked for safety.</p>}
                 </div>
                 <div className="grid grid-cols-3 gap-2 px-4 pb-4">
                   <Link href={`/babies/${baby.id}/feedings/new`} className="flex min-h-12 items-center justify-center rounded-full bg-sage text-sm font-bold text-white dark:text-[#10201A]">+ Feed</Link>
+                  <Link href={`/babies/${baby.id}/excretions/new`} className="flex min-h-12 items-center justify-center rounded-full border border-line text-sm font-bold">+ Excretion</Link>
                   <Link href={`/babies/${baby.id}/weight?add=1`} className="flex min-h-12 items-center justify-center rounded-full border border-line text-sm font-bold">+ Weight</Link>
-                  <Link href={`/babies/${baby.id}/milk`} className="flex min-h-12 items-center justify-center rounded-full border border-line text-sm font-bold">Milk</Link>
                 </div>
               </article>
             </li>

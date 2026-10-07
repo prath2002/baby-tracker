@@ -6,9 +6,19 @@ import { badRequest, pageParams, requireIfMatch, zDateTime, type Router } from "
 import { audit, cursorClause, nextCursor, requireBaby, softDelete, upsertTimeline, versionedUpdate } from "../core";
 import { storage } from "../storage";
 
-const TYPES = ["BIRTH", "FEEDING", "WEIGHT", "VACCINE", "APPOINTMENT", "PRESCRIPTION", "MEDICINE", "ALLERGY", "MEDICAL_REPORT", "IMPORTANT_MEDICAL_EVENT", "CUSTOM"];
+const TYPES = ["BIRTH", "FEEDING", "EXCRETION", "WEIGHT", "VACCINE", "APPOINTMENT", "PRESCRIPTION", "MEDICINE", "ALLERGY", "MEDICAL_REPORT", "IMPORTANT_MEDICAL_EVENT", "CUSTOM"];
+/** Extra per-source detail for the timeline (e.g. pee/poop/both/vomit) so clients can count without parsing titles. */
+const DETAIL_JOIN = "LEFT JOIN excretion x ON t.source_table = 'excretion' AND x.id = t.source_id";
+const WITH_DETAIL = `(SELECT t.*, x.excretion_type AS source_detail FROM timeline_event t ${DETAIL_JOIN}) e`;
+
+function parseTypes(raw: string | null) {
+  const types = (raw ?? "").split(",").filter(Boolean);
+  if (types.some((t) => !TYPES.includes(t))) throw badRequest("Unknown event type");
+  return types.length ? types : null;
+}
+
 const HREF: Record<string, (b: string, id: string) => string> = {
-  feeding: (b) => `/babies/${b}/feedings`, weight_measurement: (b) => `/babies/${b}/weight`, vaccination: (b) => `/babies/${b}/vaccinations`,
+  feeding: (b) => `/babies/${b}/feedings`, excretion: (b) => `/babies/${b}/excretions`, weight_measurement: (b) => `/babies/${b}/weight`, vaccination: (b) => `/babies/${b}/vaccinations`,
   appointment: (b, id) => `/babies/${b}/appointments/${id}`, prescription: (b, id) => `/babies/${b}/prescriptions/${id}`, medicine: (b) => `/babies/${b}/medicines`,
   allergy: (b) => `/babies/${b}/allergies`, medical_document: (b, id) => `/babies/${b}/documents/${id}`, baby: (b) => `/babies/${b}/profile`,
   feeding_plan: (b) => `/babies/${b}/milk`, custom_event: (b) => `/babies/${b}/timeline`,
@@ -18,15 +28,13 @@ export function registerTimeline(r: Router) {
   r.get("/babies/:babyId/timeline", async (ctx) => {
     const a = await requireBaby(ctx, ctx.params.babyId, "READ");
     const { limit, cursor } = pageParams(ctx.query);
-    const types = (ctx.query.get("types") ?? "").split(",").filter(Boolean);
-    if (types.some((t) => !TYPES.includes(t))) throw badRequest("Unknown event type");
-    const params: unknown[] = [a.babyId, types.length ? types : null, ctx.query.get("from"), ctx.query.get("to")];
+    const params: unknown[] = [a.babyId, parseTypes(ctx.query.get("types")), ctx.query.get("from"), ctx.query.get("to")];
     // documents only for members with document access
     const hideDocs = !(a.canViewDocuments || a.role === "OWNER" || a.role === "GUARDIAN");
     const cc = cursorClause(cursor, "occurred_at", params.length + 1);
     params.push(...cc.value, limit);
     const rows = await ctx.q<{ id: string; baby_id: string; source_table: string; source_id: string; occurred_at: Date }>(
-      `SELECT id, baby_id, event_type, occurred_at, occurred_tz, source_table, source_id, title, summary, importance FROM timeline_event
+      `SELECT id, baby_id, event_type, occurred_at, occurred_tz, source_table, source_id, title, summary, importance, source_detail FROM ${WITH_DETAIL}
        WHERE baby_id = $1 AND NOT is_hidden AND ($2::text[] IS NULL OR event_type = ANY($2)) AND ($3::timestamptz IS NULL OR occurred_at >= $3) AND ($4::timestamptz IS NULL OR occurred_at <= $4)
        ${hideDocs ? "AND event_type <> 'MEDICAL_REPORT'" : ""}${cc.sql} ORDER BY occurred_at DESC, id DESC LIMIT $${params.length}`, params);
     return { data: rows.map((x) => ({ ...x, href: HREF[x.source_table]?.(x.baby_id, x.source_id) ?? null })), next_cursor: nextCursor(rows, limit, "occurred_at") };
@@ -39,9 +47,10 @@ export function registerTimeline(r: Router) {
       babies.push(await requireBaby(ctx, id, "READ"));
     const docOk = babies.filter((b) => b.canViewDocuments || b.role === "OWNER" || b.role === "GUARDIAN").map((b) => b.babyId);
     const rows = await ctx.q<{ baby_id: string; source_table: string; source_id: string }>(
-      `SELECT t.id, t.baby_id, b.first_name, b.colour_token, t.event_type, t.occurred_at, t.source_table, t.source_id, t.title, t.summary, t.importance
-       FROM timeline_event t JOIN baby b ON b.id = t.baby_id WHERE t.baby_id = ANY($1) AND NOT t.is_hidden AND (t.event_type <> 'MEDICAL_REPORT' OR t.baby_id = ANY($2))
-       ORDER BY t.occurred_at DESC LIMIT $3`, [babies.map((b) => b.babyId), docOk, pageParams(ctx.query).limit]);
+      `SELECT t.id, t.baby_id, b.first_name, b.colour_token, t.event_type, t.occurred_at, t.source_table, t.source_id, t.title, t.summary, t.importance, x.excretion_type AS source_detail
+       FROM timeline_event t JOIN baby b ON b.id = t.baby_id ${DETAIL_JOIN}
+       WHERE t.baby_id = ANY($1) AND NOT t.is_hidden AND (t.event_type <> 'MEDICAL_REPORT' OR t.baby_id = ANY($2)) AND ($4::text[] IS NULL OR t.event_type = ANY($4))
+       ORDER BY t.occurred_at DESC LIMIT $3`, [babies.map((b) => b.babyId), docOk, pageParams(ctx.query).limit, parseTypes(ctx.query.get("types"))]);
     return { data: rows.map((x) => ({ ...x, href: HREF[x.source_table]?.(x.baby_id, x.source_id) ?? null })), next_cursor: null };
   });
 

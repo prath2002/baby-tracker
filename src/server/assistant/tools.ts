@@ -370,8 +370,28 @@ export const TOOLS = [
   }),
 
   def({
+    name: "log_excretion",
+    description: "Record pee/urine/wet diaper, poop/stool/motion/dirty diaper, a diaper with both, or vomit/spit-up. Put the user's description (colour, texture, smell, amount, what was vomited) in notes, in their own words.",
+    args: (babyId) => z.object({
+      baby_id: babyId,
+      occurred_at: iso,
+      excretion_type: z.enum(["URINE", "STOOL", "URINE_AND_STOOL", "VOMIT"]).describe("URINE = pee/wet; STOOL = poop/motion/potty/dirty; URINE_AND_STOOL = one diaper with both; VOMIT = vomit/spit-up/threw up"),
+      notes: optText(2000, "The user's description, e.g. 'yellow, liquidy' or 'curdled milk after feed'. Omit if they gave none."),
+    }),
+    build: (a, ctx) => {
+      const b = baby(ctx, a.baby_id);
+      const kind = { URINE: "Pee", STOOL: "Poop", URINE_AND_STOOL: "Pee + poop", VOMIT: "Vomit" }[a.excretion_type];
+      return {
+        baby_id: b.id, title: kind, details: [when(ctx, a.occurred_at), a.notes].filter(Boolean) as string[],
+        steps: [{ method: "POST", path: `/babies/${b.id}/excretions`, body: clean({ ...a, baby_id: undefined, occurred_tz: ctx.tz, client_id: uuidv7() }) }],
+        blocked: need(b, "LOG"), offline_ok: true,
+      };
+    },
+  }),
+
+  def({
     name: "log_other",
-    description: "Record something NO other tool covers: fever/temperature, vomiting, diaper/poop, sleep, rash, milestones. Never use it to repeat, confirm or annotate a feed, measurement, dose, vaccine, appointment or other entry made with another tool. Mark is_important_medical for symptoms a doctor should see.",
+    description: "Record something NO other tool covers: fever/temperature, sleep, rash, milestones. Pee, poop and vomit are log_excretion, never log_other. Never use it to repeat, confirm or annotate a feed, measurement, dose, vaccine, appointment or other entry made with another tool. Mark is_important_medical for symptoms a doctor should see.",
     args: (babyId) => z.object({
       baby_id: babyId,
       occurred_at: iso,
@@ -498,7 +518,8 @@ Rules:
 - Medicines and prescriptions are recorded exactly as stated. Never calculate, suggest or correct a dose.
 - For a dose of a medicine already in the baby's list, pass its medicine_id.
 - For doctors/clinics, pass the id only if the name matches the list above; otherwise mention the name in notes.
-- Symptoms (fever, vomiting, rash, etc.) go to log_other with is_important_medical true. Reactions to a food/medicine also go to add_allergy as SUSPECTED.
+- Pee/urine/wet nappy → log_excretion URINE; poop/stool/motion/potty/dirty nappy → STOOL; pee and poop in the same diaper → URINE_AND_STOOL (one call, not two); vomit/spit-up/threw up → VOMIT. Copy the user's description (colour, texture, smell, what came up) into notes in their own words, e.g. "yellow, liquidy". Never ask for a description if none was given.
+- Other symptoms (fever, rash, etc.) go to log_other with is_important_medical true. Vomiting is only log_excretion; if a fever came with it, log the fever separately with log_other. Reactions to a food/medicine also go to add_allergy as SUSPECTED.
 - Never give medical advice, diagnoses or dosing guidance. If asked, say briefly that you can only record information and they should contact their doctor (or emergency services if urgent).
 - Nothing is saved until the user taps Save on each card, so keep any text reply to one short sentence. If the message is not something to record, reply briefly and say what you can log.`;
 }

@@ -6,6 +6,7 @@ import { badRequest, type Ctx, type Router } from "../http";
 import { requireBaby, type BabyAccess } from "../core";
 import { dailyFeedingSummary, feedsInRange, applicableReference } from "./feedings";
 import { vaccinePlan } from "./vaccinations";
+import { excretionCounts } from "./excretions";
 
 export function datesBetween(from: string, to: string) {
   const out: string[] = [];
@@ -30,7 +31,7 @@ async function common(ctx: Ctx, a: BabyAccess, from: string, to: string) {
     allergies: await ctx.q("SELECT substance, status, severity_reported, reaction_text FROM allergy WHERE baby_id = $1 AND is_active AND deleted_at IS NULL", [a.babyId]),
     documents: docs ? await ctx.q(`SELECT id, title, doc_type, to_char(document_date,'YYYY-MM-DD') AS document_date FROM medical_document WHERE baby_id = $1 AND deleted_at IS NULL AND scan_status = 'CLEAN' AND doc_type <> 'PHOTO'
       AND coalesce(document_date, created_at::date) BETWEEN $2 AND $3 ORDER BY document_date`, [a.babyId, from, to]) : [],
-    highlights: await ctx.q(`SELECT event_type, occurred_at, title FROM timeline_event WHERE baby_id = $1 AND NOT is_hidden AND event_type <> 'FEEDING' ${docs ? "" : "AND event_type <> 'MEDICAL_REPORT'"}
+    highlights: await ctx.q(`SELECT event_type, occurred_at, title FROM timeline_event WHERE baby_id = $1 AND NOT is_hidden AND event_type NOT IN ('FEEDING','EXCRETION') ${docs ? "" : "AND event_type <> 'MEDICAL_REPORT'"}
       AND occurred_at BETWEEN $2 AND $3 ORDER BY importance DESC, occurred_at LIMIT 20`, [a.babyId, fromTs, toTs]),
   };
 }
@@ -58,6 +59,7 @@ export async function rangeSummary(ctx: Ctx, a: BabyAccess, from: string, to: st
   return {
     baby_id: a.babyId, period, from, to, age: calculateBabyAge({ birthDate: a.baby.birth_date }, new Date(), a.householdTz),
     feeding: { ...milk, median_interval_min: calculateFeedingFrequency(feeds).medianIntervalMin },
+    excretions: dates.length ? await excretionCounts(ctx, a.babyId, dates[0], dates[dates.length - 1]) : { wet: 0, dirty: 0, vomit: 0, total: 0, last_at: null },
     weight_trend: weightTrend, ...c,
     vaccine_plan: vaccines ? { schedule_id: vaccines.schedule_id, due: vaccines.items.filter((i) => i.status === "DUE" || i.status === "PAST_STATED_AGE_LIMIT"), pending_review: vaccines.pendingReview } : null,
     reference: await applicableReference(ctx, a),

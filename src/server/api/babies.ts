@@ -10,6 +10,7 @@ import { randomToken, sha256 } from "../crypto";
 import { sendEmail } from "../delivery";
 import { env } from "../env";
 import { dailyFeedingSummary } from "./feedings";
+import { excretionCounts } from "./excretions";
 import { nextVaccine } from "./vaccinations";
 
 export const COLOURS = ["PEACH", "SKY", "MINT", "LILAC", "BUTTER", "ROSE"] as const;
@@ -72,6 +73,7 @@ export function registerBabies(r: Router) {
       const dto = await babyDto(ctx, a);
       const today = localDateOf(new Date(), a.householdTz);
       const feeding = await dailyFeedingSummary(ctx, a, today);
+      const excretions = await excretionCounts(ctx, baby_id, today, today);
       const w = await ctx.q.one("SELECT weight_kg, to_char(local_date,'YYYY-MM-DD') AS local_date FROM weight_measurement WHERE baby_id = $1 AND weight_kg IS NOT NULL AND deleted_at IS NULL ORDER BY measured_at DESC LIMIT 1", [baby_id]);
       const appt = await ctx.q.one("SELECT id, starts_at, purpose FROM appointment WHERE baby_id = $1 AND status = 'SCHEDULED' AND starts_at >= now() AND deleted_at IS NULL ORDER BY starts_at LIMIT 1", [baby_id]);
       const vac = await nextVaccine(ctx, a).catch(() => null);
@@ -80,7 +82,7 @@ export function registerBabies(r: Router) {
       if (dto.allergies.length) alerts.push("ALLERGIES_RECORDED");
       if (vac?.status === "PAST_STATED_AGE_LIMIT") alerts.push("VACCINE_PAST_STATED_AGE");
       if ((docIssues?.n ?? 0) > 0) alerts.push("DOCUMENT_BLOCKED");
-      babies.push({ baby: dto, today: feeding, latest_weight: w ? { weight_kg: Number(w.weight_kg), local_date: w.local_date } : null, next_vaccine: vac, next_appointment: appt, alerts });
+      babies.push({ baby: dto, today: feeding, excretions, latest_weight: w ? { weight_kg: Number(w.weight_kg), local_date: w.local_date } : null, next_vaccine: vac, next_appointment: appt, alerts });
     }
     return { babies };
   });

@@ -71,6 +71,12 @@ export async function visitSummaryPdf(input: { baby: Any; summary: Any; generate
     for (const d of days.slice(-31)) para(`${d.localDate} · ${d.totalFeedCount} · ${d.directBreastfeedingSessions} · ${d.measuredMl ?? "—"}`, { size: 8.5, indent: 8 });
   }
 
+  const x = s.excretions as Any | undefined;
+  if (x) {
+    h2("Excretions (recorded)");
+    para(x.total ? `Wet: ${x.wet} · Dirty: ${x.dirty} · Vomit: ${x.vomit} (counts only; "pee + poop" counts as both).` : "None recorded in this period.");
+  }
+
   h2("Growth (recorded measurements)");
   const ws = (s.weights as Any[]) ?? [];
   if (!ws.length) para("No measurements recorded in this period.");

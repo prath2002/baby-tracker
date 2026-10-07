@@ -69,7 +69,7 @@ function BottomNav() {
 function QuickLog({ open, onClose, onGo }: { open: boolean; onClose: () => void; onGo: (href: string) => void }) {
   const [action, setAction] = useState<string | null>(null);
   const { data } = useApi<{ data: { id: string }[] }>(open ? "/babies" : null);
-  const ACTIONS: [string, string][] = [["feedings/new", "Add feeding"], ["weight?add=1", "Add weight"], ["vaccinations/new", "Add vaccine"], ["appointments/new", "Add appointment"], ["documents/upload", "Upload report"]];
+  const ACTIONS: [string, string][] = [["feedings/new", "Add feeding"], ["excretions/new", "Add excretion"], ["weight?add=1", "Add weight"], ["vaccinations/new", "Add vaccine"], ["appointments/new", "Add appointment"], ["documents/upload", "Upload report"]];
   useEffect(() => { if (!open) setAction(null); }, [open]);
   const only = data?.data.length === 1 ? data.data[0].id : null;
   useEffect(() => { if (action && only) onGo(`/babies/${only}/${action}`); }, [action, only, onGo]);

@@ -154,6 +154,57 @@ describe("feeding records & milk math", () => {
   });
 });
 
+describe("excretions (pee / poop / both / vomit)", () => {
+  let baby: any;
+  const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  beforeAll(async () => { baby = await addBaby(alice, { first_name: "Tara", sex: "FEMALE", birth_date: "2026-05-01" }); });
+
+  it("logs each type with a note, puts the note on the timeline and counts 'both' as wet and dirty", async () => {
+    const poop = await alice.call("POST", `/babies/${baby.id}/excretions`, { occurred_at: ago(30), excretion_type: "STOOL", notes: "yellow, liquidy" });
+    expect(poop.status).toBe(201);
+    expect(poop.body).toMatchObject({ excretion_type: "STOOL", notes: "yellow, liquidy", version: 1 });
+    for (const [min, type] of [[20, "URINE"], [10, "URINE_AND_STOOL"], [5, "VOMIT"]] as const)
+      expect((await alice.call("POST", `/babies/${baby.id}/excretions`, { occurred_at: ago(min), excretion_type: type })).status).toBe(201);
+    const s = await alice.call("GET", `/babies/${baby.id}/excretions/summary`);
+    expect(s.body).toMatchObject({ wet: 2, dirty: 2, vomit: 1, total: 4 });
+    const list = await alice.call("GET", `/babies/${baby.id}/excretions`);
+    expect(list.body.data.map((x: any) => x.excretion_type)).toEqual(["VOMIT", "URINE_AND_STOOL", "URINE", "STOOL"]);
+    const tl = await alice.call("GET", `/babies/${baby.id}/timeline?types=EXCRETION`);
+    expect(tl.body.data).toHaveLength(4);
+    const row = tl.body.data.find((e: any) => e.source_id === poop.body.id);
+    expect(row).toMatchObject({ event_type: "EXCRETION", title: "Poop", summary: "yellow, liquidy", source_detail: "STOOL", href: `/babies/${baby.id}/excretions` });
+    const highlights = await alice.call("GET", `/babies/${baby.id}/timeline?types=BIRTH,CUSTOM`);
+    expect(highlights.body.data.some((e: any) => e.event_type === "EXCRETION")).toBe(false);
+    const unified = await alice.call("GET", `/timeline?baby_ids=${baby.id}&types=EXCRETION`);
+    expect(unified.body.data.every((e: any) => e.event_type === "EXCRETION")).toBe(true);
+    expect(unified.body.data).toHaveLength(4);
+  });
+
+  it("rejects future times and unknown types; flags near-duplicates", async () => {
+    expect((await alice.call("POST", `/babies/${baby.id}/excretions`, { occurred_at: new Date(Date.now() + 3600_000).toISOString(), excretion_type: "URINE" })).status).toBe(400);
+    expect((await alice.call("POST", `/babies/${baby.id}/excretions`, { occurred_at: ago(1), excretion_type: "SWEAT" })).status).toBe(400);
+    const t = ago(120);
+    expect((await alice.call("POST", `/babies/${baby.id}/excretions`, { occurred_at: t, excretion_type: "URINE" })).status).toBe(201);
+    const dup = await alice.call("POST", `/babies/${baby.id}/excretions`, { occurred_at: t, excretion_type: "URINE" });
+    expect(dup.status).toBe(409);
+    expect(dup.body.code).toBe("DUPLICATE_SUSPECTED");
+    expect((await alice.call("POST", `/babies/${baby.id}/excretions`, { occurred_at: t, excretion_type: "URINE", force: true })).status).toBe(201);
+  });
+
+  it("edits with If-Match, and delete hides it from the timeline until restored", async () => {
+    const x = await alice.call("POST", `/babies/${baby.id}/excretions`, { occurred_at: new Date(Date.now() - 2 * 86400_000).toISOString(), excretion_type: "STOOL" });
+    const ok = await alice.call("PATCH", `/babies/${baby.id}/excretions/${x.body.id}`, { excretion_type: "VOMIT", notes: "curdled milk" }, { "if-match": "1" });
+    expect(ok.status).toBe(200);
+    expect(ok.body).toMatchObject({ excretion_type: "VOMIT", notes: "curdled milk", version: 2 });
+    const ev = async () => (await alice.call("GET", `/babies/${baby.id}/timeline?types=EXCRETION&limit=100`)).body.data.find((e: any) => e.source_id === x.body.id);
+    expect(await ev()).toMatchObject({ title: "Vomit", summary: "curdled milk" });
+    expect((await alice.call("DELETE", `/babies/${baby.id}/excretions/${x.body.id}`)).status).toBe(204);
+    expect(await ev()).toBeUndefined();
+    expect((await alice.call("POST", `/babies/${baby.id}/excretions/${x.body.id}/restore`)).status).toBe(201);
+    expect(await ev()).toBeTruthy();
+  });
+});
+
 describe("reference engine gating", () => {
   let lbw: any;
   beforeAll(async () => { const d = new Date(); d.setDate(d.getDate() - 2); lbw = await addBaby(alice, { first_name: "Kabir", birth_date: d.toISOString().slice(0, 10), birth_weight_kg: 1.4, ga_weeks: 31, show_clinical_references: true }); });
@@ -208,6 +259,7 @@ describe("roles: caregiver, viewer and documents", () => {
   });
   it("caregiver can log feeds but not vaccines or allergies", async () => {
     expect((await bob.call("POST", `/babies/${baby.id}/feedings`, { occurred_at: new Date().toISOString(), feeding_type: "DIRECT_BREASTFEEDING" })).status).toBe(201);
+    expect((await bob.call("POST", `/babies/${baby.id}/excretions`, { occurred_at: new Date().toISOString(), excretion_type: "URINE" })).status).toBe(201);
     expect((await bob.call("POST", `/babies/${baby.id}/vaccinations`, { vaccine_name_as_recorded: "BCG", given_on: "2026-03-10" })).status).toBe(403);
     expect((await bob.call("POST", `/babies/${baby.id}/allergies`, { substance: "Egg", status: "SUSPECTED" })).status).toBe(403);
   });
@@ -217,6 +269,7 @@ describe("roles: caregiver, viewer and documents", () => {
   it("viewer is read-only", async () => {
     expect((await carol.call("GET", `/babies/${baby.id}/feedings`)).status).toBe(200);
     expect((await carol.call("POST", `/babies/${baby.id}/feedings`, { occurred_at: new Date().toISOString(), feeding_type: "DIRECT_BREASTFEEDING" })).status).toBe(403);
+    expect((await carol.call("POST", `/babies/${baby.id}/excretions`, { occurred_at: new Date().toISOString(), excretion_type: "URINE" })).status).toBe(403);
   });
   it("only owners change roles (with step-up)", async () => {
     expect((await bob.call("PATCH", `/babies/${baby.id}/members/${carol.userId}`, { role: "GUARDIAN" })).status).toBe(403);

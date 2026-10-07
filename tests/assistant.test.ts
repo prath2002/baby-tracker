@@ -73,6 +73,24 @@ describe("assistant tools → proposals", () => {
     expect(call("log_measurement", { baby_id: A, measured_at: "2026-10-06T09:00:00+05:30" }).ok).toBe(false);
   });
 
+  it("maps pee/poop/vomit to the excretions endpoint, keeping the parent's description as notes", () => {
+    const defs = toolDefinitions(ctx());
+    const schema = defs.find((d) => d.function.name === "log_excretion")!.function.parameters as { properties: { excretion_type: { enum: string[] } } };
+    expect(schema.properties.excretion_type.enum).toEqual(["URINE", "STOOL", "URINE_AND_STOOL", "VOMIT"]);
+    const r = call("log_excretion", { baby_id: A, occurred_at: "2026-10-06T15:10:00+05:30", excretion_type: "STOOL", notes: "yellow, liquidy" }, ctx("CAREGIVER"));
+    if (!r.ok || !("proposal" in r)) throw new Error("expected proposal");
+    expect(r.proposal.title).toBe("Poop");
+    expect(r.proposal.details).toContain("yellow, liquidy");
+    expect(r.proposal.steps).toEqual([{ method: "POST", path: `/babies/${A}/excretions`, body: expect.objectContaining({ excretion_type: "STOOL", notes: "yellow, liquidy", occurred_tz: "Asia/Kolkata" }) }]);
+    expect(r.proposal.blocked).toBeUndefined();
+    expect(r.proposal.offline_ok).toBe(true);
+    const both = call("log_excretion", { baby_id: B, occurred_at: "2026-10-06T15:10:00+05:30", excretion_type: "URINE_AND_STOOL" });
+    if (!both.ok || !("proposal" in both)) throw new Error("expected proposal");
+    expect(both.proposal.title).toBe("Pee + poop");
+    expect(both.proposal.steps[0].body).not.toHaveProperty("notes");
+    expect(call("log_excretion", { baby_id: A, occurred_at: "2026-10-06T15:10:00+05:30", excretion_type: "DIAPER" }).ok).toBe(false);
+  });
+
   it("ask_user returns tap-able options", () => {
     const r = call("ask_user", { question: "For Aarav or Anaya?", options: ["Aarav", "Anaya"] });
     expect(r).toEqual({ ok: true, ask: { question: "For Aarav or Anaya?", options: ["Aarav", "Anaya"] } });

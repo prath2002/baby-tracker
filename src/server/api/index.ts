@@ -5,6 +5,7 @@ import { checkDbRole } from "../dbcheck";
 import { registerAuth } from "./auth";
 import { registerBabies } from "./babies";
 import { registerFeedings } from "./feedings";
+import { registerExcretions } from "./excretions";
 import { registerReferences } from "./references";
 import { registerGrowth } from "./growth";
 import { registerVaccinations } from "./vaccinations";
@@ -24,6 +25,7 @@ export function apiRouter() {
   registerAuth(r);
   registerBabies(r);
   registerFeedings(r);
+  registerExcretions(r);
   registerReferences(r);
   registerGrowth(r);
   registerVaccinations(r);

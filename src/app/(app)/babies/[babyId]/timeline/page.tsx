@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import { useApi } from "@/lib/useApi";
 import { fmtDate, fmtTime } from "@/lib/format";
 import { Button, EmptyState, ErrorState, Field, Input, Loading, PageHeader, Select, Sheet, Textarea, Toggle, useToast } from "@/components/ui";
+import { HIGHLIGHT_TYPES, TimelineTabBar, dayCountText, tabTypes, useTimelineTab } from "@/components/timeline-tabs";
 import { BabyNav, displayName, useBaby, canLog } from "@/components/baby";
 import { api, errorText } from "@/lib/api";
 import { localInputToIso, nowLocalInput } from "@/lib/format";
@@ -15,9 +16,9 @@ export default function BabyTimeline({ params }: { params: Promise<{ babyId: str
   const { babyId } = use(params);
   const toast = useToast();
   const { data: baby } = useBaby(babyId);
+  const [tab, setTab] = useTimelineTab();
   const [type, setType] = useState("");
-  const [hideFeeds, setHideFeeds] = useState(true);
-  const types = type || (hideFeeds ? Object.keys(ICON).filter((t) => t !== "FEEDING").join(",") : "");
+  const types = (tab === "highlights" && type) || tabTypes(tab)?.join(",") || "";
   const { data, error, loading, reload } = useApi<any>(`/babies/${babyId}/timeline?limit=100${types ? `&types=${types}` : ""}`);
   const [ev, setEv] = useState<any>(null);
   if (!baby) return <Loading />;
@@ -31,16 +32,16 @@ export default function BabyTimeline({ params }: { params: Promise<{ babyId: str
     <>
       <PageHeader title="Timeline" subtitle={displayName(baby)} action={canLog(baby.my_role) && <Button className="min-h-10 px-4 text-sm" onClick={() => setEv({ when: nowLocalInput(baby.household_timezone), title: "", desc: "", important: false })}>+ Event</Button>} />
       <BabyNav babyId={babyId} active="timeline" />
-      <div className="mb-3 flex flex-col gap-2">
-        <Select aria-label="Filter" value={type} onChange={(e) => setType(e.target.value)}><option value="">All events</option>{Object.keys(ICON).map((t) => <option key={t} value={t}>{t.replace(/_/g, " ").toLowerCase()}</option>)}</Select>
-        {!type && <Toggle checked={hideFeeds} onChange={setHideFeeds} label="Hide individual feeds" />}
-      </div>
+      <TimelineTabBar tab={tab} onChange={setTab} />
+      {tab === "highlights" && <div className="mb-3"><Select aria-label="Filter" value={type} onChange={(e) => setType(e.target.value)}><option value="">All highlights</option>{HIGHLIGHT_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ").toLowerCase()}</option>)}</Select></div>}
+      {tab === "feeds" && <p className="mb-3 text-sm"><Link className="font-semibold text-sage" href={`/babies/${babyId}/feedings`}>Edit feeds in feeding history ›</Link></p>}
+      {tab === "excretions" && <p className="mb-3 text-sm"><Link className="font-semibold text-sage" href={`/babies/${babyId}/excretions`}>Edit entries in excretion history ›</Link></p>}
       {loading && <Loading />}
       {error && <ErrorState message={error.message} onRetry={reload} />}
-      {data && !data.data.length && <EmptyState title="Nothing yet" body="Events appear here as you log." />}
+      {data && !data.data.length && <EmptyState title="Nothing yet" body={tab === "excretions" ? "Pee, poop and vomit you log appear here." : tab === "feeds" ? "Feeds you log appear here." : "Events appear here as you log."} />}
       {Object.entries(groups).map(([day, list]) => (
         <section key={day} className="mb-4">
-          <h2 className="mb-1 text-sm font-bold text-ink-2">{fmtDate(day)}</h2>
+          <h2 className="mb-1 flex items-baseline justify-between text-sm font-bold text-ink-2"><span>{fmtDate(day)}</span><span className="num font-semibold">{dayCountText(tab, list as any[])}</span></h2>
           <ol className="card divide-y divide-line p-1">{(list as any[]).map((e) => (
             <li key={e.id}><Link href={e.href ?? "#"} className="flex min-h-14 items-center gap-3 px-3 py-2">
               <span aria-hidden className="w-6 text-center text-lg">{ICON[e.event_type]}</span>

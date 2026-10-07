@@ -85,7 +85,7 @@ export function registerAssistant(r: Router) {
     proposals.splice(0, proposals.length, ...guarded.proposals);
     ask = guarded.ask ?? ask;
     if (ask) reply = ask.question;
-    if (!reply) reply = proposals.length ? (proposals.length === 1 ? "Here's what I understood. Tap Save to add it." : `Here are ${proposals.length} entries. Tap Save on each one.`) : "I can log feeds, weight, medicines, allergies, vaccines, appointments and more. What happened?";
+    if (!reply) reply = proposals.length ? (proposals.length === 1 ? "Here's what I understood. Tap Save to add it." : `Here are ${proposals.length} entries. Tap Save on each one.`) : "I can log feeds, pee/poop/vomit, weight, medicines, allergies, vaccines, appointments and more. What happened?";
     await audit(ctx, "ASSISTANT_CHAT", { detail: { proposals: proposals.map((p) => p.kind), model: env.OPENROUTER_MODEL } });
     return { reply, proposals, ask, transcript: [reply, ...proposals.map((p) => summarise(p, ac))].join("\n") };
   }, { rateLimit: { bucket: "assistant", perMinute: 30 } });

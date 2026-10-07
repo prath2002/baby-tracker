@@ -48,3 +48,4 @@ e2e-shots/
 .env.e2e
 .env.example
 .env.development
+brag-output/

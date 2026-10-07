@@ -6,7 +6,7 @@ import { storage } from "./storage";
  * Hard purge after the 30-day recovery window (spec §36 Deletion). Removes rows and stored objects.
  * Audit rows are retained (append-only, >= 1 year per DPDP Rules Rule 6 as extracted — counsel to confirm), with the chain intact.
  */
-const BABY_TABLES = ["medicine_dose", "medicine_schedule", "prescription_item", "medicine", "prescription", "vaccination", "appointment", "allergy", "feeding", "feeding_plan",
+const BABY_TABLES = ["medicine_dose", "medicine_schedule", "prescription_item", "medicine", "prescription", "vaccination", "appointment", "allergy", "feeding", "feeding_plan", "excretion",
   "weight_measurement", "custom_event", "timeline_event", "share_link", "export_job", "baby_schedule_selection", "invitation"];
 
 export async function purgeDue(now = new Date()) {

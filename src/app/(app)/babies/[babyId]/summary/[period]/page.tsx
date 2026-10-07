@@ -61,6 +61,15 @@ export default function Summary({ params }: { params: Promise<{ babyId: string; 
             </div>
             {period !== "daily" && <div className="mt-3"><DayBars label="Measured milk per day" days={f.days.map((x: any) => ({ date: x.localDate, value: x.measuredMl, hasAnyData: x.dataStatus === "RECORDED" }))} /></div>}
           </Card>
+          {s.excretions && <Card>
+            <div className="mb-2 flex items-center justify-between"><h2 className="text-lg font-bold">Excretions</h2><Link href={`/babies/${babyId}/excretions`} className="text-sm font-semibold text-sage">History ›</Link></div>
+            <div className="grid grid-cols-3 gap-2">
+              <Stat label="Wet" value={s.excretions.wet} />
+              <Stat label="Dirty" value={s.excretions.dirty} />
+              <Stat label="Vomit" value={s.excretions.vomit} />
+            </div>
+            <p className="mt-2 text-xs text-ink-2">Counts from your records. A diaper with pee and poop counts as both.</p>
+          </Card>}
           {period === "daily" && <ReferenceCard r={s.reference} />}
           <Card>
             <h2 className="mb-2 text-lg font-bold">Weight & growth</h2>

@@ -5,7 +5,7 @@ import { uuidv7 } from "@/lib/ids";
 import { calculateBabyAge, localDateOf } from "@/lib/age";
 import { calculateDailyMeasuredMilk, calculateFeedingFrequency, mlToOz, ozToMl, type FeedLike } from "@/lib/milk";
 import { ApiError, badRequest, conflict, notFound, pageParams, requireIfMatch, ruleViolation, zDate, zDateTime, type Ctx, type Router } from "../http";
-import { audit, cursorClause, nextCursor, requireBaby, softDelete, upsertTimeline, versionedUpdate, type BabyAccess } from "../core";
+import { audit, checkEventTime, cursorClause, nextCursor, requireBaby, softDelete, upsertTimeline, versionedUpdate, type BabyAccess } from "../core";
 import { loadRules, resolveReference, type BabyFacts, type FeedingPlanRow } from "../reference/engine";
 
 const TYPES = ["DIRECT_BREASTFEEDING", "EXPRESSED_BREASTMILK", "FORMULA", "OTHER"] as const;
@@ -44,13 +44,6 @@ function validateRules(f: { feeding_type: string; quantity_ml: number | null; br
   if (f.breast_side && f.feeding_type !== "DIRECT_BREASTFEEDING") throw badRequest("Breast side applies only to direct breastfeeding");
   if (f.quantity_ml != null && f.quantity_ml > QUANTITY_CONFIRM_ML && !confirm)
     throw new ApiError(422, "CONFIRMATION_REQUIRED", "Please confirm this amount", `${f.quantity_ml} ml in one feed is unusually large for data entry. Check the unit and confirm.`);
-}
-
-function checkTime(a: BabyAccess, occurredAt: string) {
-  const t = new Date(occurredAt).getTime();
-  if (t > Date.now() + 5 * 60_000) throw badRequest("Feed time can't be in the future", [{ field: "occurred_at", code: "future", message: "Time is in the future" }]);
-  const birthStart = DateTime.fromISO(a.baby.birth_date, { zone: a.baby.birth_tz }).startOf("day").toMillis();
-  if (t < birthStart) throw badRequest("Feed time is before the date of birth", [{ field: "occurred_at", code: "before_birth", message: "Before date of birth" }]);
 }
 
 export function feedTitle(f: { feeding_type: string; quantity_ml: number | string | null; breast_side?: string | null; duration_minutes?: number | null; other_description?: string | null }) {
@@ -134,7 +127,7 @@ export function registerFeedings(r: Router) {
   r.post("/babies/:babyId/feedings", async (ctx) => {
     const a = await requireBaby(ctx, ctx.params.babyId, "LOG");
     const b = await ctx.body(createSchema);
-    checkTime(a, b.occurred_at);
+    checkEventTime(a, b.occurred_at, "Feed");
     const qty = normaliseQuantity(b);
     validateRules({ ...b, quantity_ml: qty.quantity_ml }, b.confirm_quantity || b.force);
     if (b.client_id) {
@@ -185,7 +178,7 @@ export function registerFeedings(r: Router) {
     if (type !== "DIRECT_BREASTFEEDING" && b.breast_side === undefined) merged.breast_side = null;
     if (type === "DIRECT_BREASTFEEDING") merged.quantity_offered_ml = null;
     validateRules(merged as never, b.confirm_quantity || b.force);
-    if (b.occurred_at) checkTime(a, b.occurred_at);
+    if (b.occurred_at) checkEventTime(a, b.occurred_at, "Feed");
     const sets: Record<string, unknown> = {
       occurred_at: merged.occurred_at, occurred_tz: merged.occurred_tz, local_date: localDateOf(new Date(merged.occurred_at as string), a.householdTz),
       feeding_type: type, feeding_method: merged.feeding_method ?? null, quantity_ml: qty.quantity_ml, quantity_oz: qty.quantity_oz, entered_unit: qty.entered_unit,
